@@ -78,47 +78,57 @@ class DataStore:
                 and len(batch_file) < self.max_size
             ):
                 try:
-                    item = self._queue.get(
+                    d, f, t, s = self._queue.get(
                         timeout=max(0, self.aggregate_interval - (time.time() - start))
                     )
-                    if item[1]:  # file exists
-                        batch_file.append(item)
-                    else:
-                        batch_data.append(item)
+                    if d != {}:
+                        batch_data.append(
+                            {
+                                "t": t,
+                                "s": s,
+                                "d": d,
+                            }
+                        )
+                    if f != {}:  # file
+                        batch_file.append(
+                            {
+                                "t": t,
+                                "s": s,
+                                "f": f,
+                            }
+                        )
                 except queue.Empty:
                     continue
-            if batch_data:
-                self._insert(batch_data)
-            if batch_file:
-                self._insert(batch_file, file=len(batch_file))
+            self._insert(batch_data, batch_file)
 
-    def _insert(self, batch, file=None):
+    def _insert(self, d, f):
         with self._lock:
             self.conn.execute("BEGIN")
             try:
-                if file:
-                    self.cursor.executemany(
-                        f"""
-                        INSERT INTO {self.table_file} (time, step, name, aid) VALUES (?, ?, ?, ?)
-                        """,
-                        [
-                            (item[2], item[3], item[1]._name, item[1]._id)
-                            for item in batch
-                        ],
-                    )
-                    logger.info(f"{tag}: inserted {len(batch)} file(s)")
-                else:
+                if d != []:
                     self.cursor.executemany(
                         f"""
                         INSERT INTO {self.table_data} (time, step, key, value) VALUES (?, ?, ?, ?)
                         """,
                         [
-                            (item[2], item[3], k, v)
-                            for item in batch
-                            for k, v in item[0].items()
+                            (e["t"], e["s"], k, v)
+                            for e in d
+                            for k, v in e["d"].items()
                         ],
                     )
-                    logger.info(f"{tag}: inserted {len(batch)} item(s)")
+                    logger.info(f"{tag}: inserted {len(d)} item(s)")
+                if f != []:
+                    self.cursor.executemany(
+                        f"""
+                        INSERT INTO {self.table_file} (time, step, name, aid) VALUES (?, ?, ?, ?)
+                        """,
+                        [
+                            (e["t"], e["s"], f"{fe._name}{fe._ext}", fe._id)
+                            for e in f
+                            for fe in e["f"].values()
+                        ],
+                    )
+                    logger.info(f"{tag}: inserted {len(f)} file(s)")
                 self.conn.commit()
             except Exception as e:
                 self.conn.rollback()

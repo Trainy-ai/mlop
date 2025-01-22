@@ -9,6 +9,7 @@ from .file import File
 from .iface import ServerInterface
 from .sets import Settings
 from .store import DataStore
+from .util import dict_to_json
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 TAG = "Logging"
@@ -94,40 +95,40 @@ class Ops:
             logger.critical("%s: failed: %s", TAG, e)
             raise e
 
-        data = data.copy()
-
+        t = int(time.time())
         if step is not None:
             if step > self._step:
                 self._step = step
         else:
             self._step += 1
 
-        t = int(time.time())
+        # data = data.copy()  # check mutability
+        d, f = {}, {}
         for k, v in data.items():
             logger.debug(f"{TAG}: added {k} at step {self._step}")
             if isinstance(v, list):
-                for i in v:
-                    self._op(k, i, t)
+                for i, e in enumerate(v):
+                    d, f = self._op(d, f, k + f"-{i}", e)
             else:
-                self._op(k, v, t)
+                d, f = self._op(d, f, k, v)
 
-    def _op(self, k, v, t) -> None:
+        # d = dict_to_json(d)  # add serialisation
+        self._store.insert(
+            data=d, file=f, timestamp=t, step=self._step
+        ) if self._store else None
+        self._iface.publish(
+            data=d, file=f, timestamp=t, step=self._step
+        ) if self._iface else None
+
+    def _op(self, d, f, k, v) -> None:
         if isinstance(v, File):
             # add step to serialise data for files
             v._mkcopy(k, self.settings.work_dir())
-            self._store.insert(
-                file=v, timestamp=t, step=self._step
-            ) if self._store else None
-            self._iface.publish(
-                file=v, timestamp=t, step=self._step
-            ) if self._iface else None
+            f[k] = v
+            # d[k] = int(v._id, 16)
         else:
-            self._store.insert(
-                data={k: v}, timestamp=t, step=self._step
-            ) if self._store else None
-            self._iface.publish(
-                data={k: v}, timestamp=t, step=self._step
-            ) if self._iface else None
+            d[k] = v
+        return d, f
 
     def _finish(self, exit_code) -> None:
         self._monitor.stop()

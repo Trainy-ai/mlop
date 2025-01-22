@@ -40,9 +40,9 @@ class Settings:
     x_file_stream_max_size: int = 2**18
     x_file_stream_transmit_interval: int = 2**3
 
-    url: str = "http://localhost:3000/ingest"
-    url_data: str = f"{url}/metrics"
-    url_file: str = f"{url}/file"
+    url: str = "http://localhost:3000"
+    url_data: str = f"{url}/ingest/metrics"
+    url_file: str = f"{url}/files"
     url_view: str = f"{url}/view"
 
     def update(self, settings) -> None:

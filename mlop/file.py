@@ -1,4 +1,3 @@
-from typing import Union, Sequence
 import hashlib
 import logging
 import mimetypes
@@ -8,6 +7,8 @@ import shutil
 import tempfile
 
 from PIL import Image as PILImage
+
+from .util import get_class
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 
@@ -27,6 +28,7 @@ class File:
         self._path = path
         self._name = name
         self._type = self._mimetype()
+        self._size = os.path.getsize(self._path)
         self._ext = os.path.splitext(self._path)[-1]
         self._id = self._hash()
         self._stat = os.stat(self._path)
@@ -38,7 +40,7 @@ class File:
         return hashlib.sha256(self._path.encode()).hexdigest()
 
     def _mkcopy(self, name, work_dir) -> None:
-        self._name = name
+        # self._name = name
         self._tmp = f"{work_dir}/files/{self._name}-{self._id}{self._ext}"
         os.makedirs(os.path.dirname(self._tmp), exist_ok=True)
         shutil.copyfile(self._path, self._tmp)
@@ -82,32 +84,6 @@ class Image(File):
             logger.error(
                 f"Image: proceeding with potentially incompatible mime type: {self._type}"
             )
-
-
-def dict_to_json(data: dict[str, any]) -> dict:
-    for key in list(data):  # avoid RuntimeError if dict size changes
-        val = data[key]
-        if isinstance(val, dict):
-            data[key] = dict_to_json(val)
-        else:
-            data[key] = val_to_json(val)
-    return data
-
-
-def val_to_json(val: any) -> Union[Sequence, dict]:
-    if isinstance(val, (int, float, str, bool)):
-        return val
-    elif isinstance(val, (list, tuple, range)):
-        raise NotImplementedError()  # for files
-
-
-def get_class(val: any) -> str:
-    module_class = val.__class__.__module__ + "." + val.__class__.__name__
-    return (
-        val.__name__
-        if module_class in ["builtins.module", "__builtin__.module"]
-        else module_class
-    )
 
 
 def make_compat_matplotlib(val: any) -> any:
