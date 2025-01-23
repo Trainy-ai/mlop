@@ -29,7 +29,7 @@ class OpsMonitor:
     def stop(self) -> None:
         self._stop_event.set()
         if self._thread is not None:
-            self._thread.join(timeout=self.op.settings.heartbeat_seconds)
+            self._thread.join()  # timeout=self.op.settings.heartbeat_seconds
             self._thread = None
 
 
@@ -107,8 +107,8 @@ class Ops:
         for k, v in data.items():
             logger.debug(f"{TAG}: added {k} at step {self._step}")
             if isinstance(v, list):
-                for i, e in enumerate(v):
-                    d, f = self._op(d, f, k + f"-{i}", e)
+                for e in v:
+                    d, f = self._op(d, f, k, e)
             else:
                 d, f = self._op(d, f, k, v)
 
@@ -124,8 +124,11 @@ class Ops:
         if isinstance(v, File):
             # add step to serialise data for files
             v._mkcopy(k, self.settings.work_dir())
-            f[k] = v
             # d[k] = int(v._id, 16)
+            if k not in f:
+                f[k] = [v]
+            else:
+                f[k].append(v)
         else:
             d[k] = v
         return d, f

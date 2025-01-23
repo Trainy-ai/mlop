@@ -89,7 +89,7 @@ class DataStore:
                                 "d": d,
                             }
                         )
-                    if f != {}:  # file
+                    if f != {}:
                         batch_file.append(
                             {
                                 "t": t,
@@ -116,7 +116,7 @@ class DataStore:
                             for k, v in e["d"].items()
                         ],
                     )
-                    logger.info(f"{tag}: inserted {len(d)} item(s)")
+                    logger.info(f"{tag}: inserted {len(d)} line(s)")
                 if f != []:
                     self.cursor.executemany(
                         f"""
@@ -124,8 +124,10 @@ class DataStore:
                         """,
                         [
                             (e["t"], e["s"], f"{fe._name}{fe._ext}", fe._id)
-                            for e in f
-                            for fe in e["f"].values()
+                            for e in f 
+                            # for fe in e["f"].values()
+                            for fel in e["f"].values()
+                            for fe in fel
                         ],
                     )
                     logger.info(f"{tag}: inserted {len(f)} file(s)")

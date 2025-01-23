@@ -19,19 +19,23 @@ class File:
         path: str,
         name: str | None = None,
     ) -> None:
-        if name and not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
+        self._path = path
+        self._id = self._hash()
+
+        if not name:
+            name = self._id
+        elif not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             e = ValueError(
                 f"invalid file name: {name}; file name must only contain alphanumeric characters, dashes, underscores, and periods."
             )
             logger.warning("File: %s", e)
             name = re.sub(r"[^a-zA-Z0-9_\-.]", "-", name)  # raise e
-        self._path = path
         self._name = name
         self._type = self._mimetype()
         self._size = os.path.getsize(self._path)
         self._ext = os.path.splitext(self._path)[-1]
-        self._id = self._hash()
         self._stat = os.stat(self._path)
+        self._url = None
 
     def _mimetype(self) -> str:
         return mimetypes.guess_type(self._path)[0] or "application/octet-stream"

@@ -101,13 +101,19 @@ class ServerInterface:
                 client=self.client,
             )
             try:
-                for f in file.values():
-                    for e in r.json():
-                        if e["name"] == f"{f._name}{f._ext}":
-                            f._url = e["url"]
+                d = r.json()
+                logger.info(f"{tag}: file api responded {len(d)} key(s)")
+                for k, fel in file.items():
+                    for f in fel:
+                        f._url = make_compat_storage_v1(f, d[k])
+                        if not f._url:
+                            logger.critical(
+                                f"{tag}: file api did not provide storage url"
+                            )
+                        else:
                             self._queue_file.put(open(f._path, "rb"), block=False)
                             # self._queue_file.put(f, block=False)
-                            s = self._put_v1(
+                            _ = self._put_v1(
                                 f._url,
                                 {
                                     "Content-Type": f._type,  # "application/octet-stream"
@@ -115,7 +121,6 @@ class ServerInterface:
                                 self._queue_file,
                                 client=self.client,
                             )
-                            assert s.status_code in [200, 201]
             except Exception as e:
                 logger.critical("%s: failed to send files: %s", tag, e)
 
@@ -139,10 +144,7 @@ class ServerInterface:
 
     def _queue_iter(self, q, b):
         s = time.time()
-        while (
-            len(b) < self.max_size
-            and (time.time() - s) < self.transmit_interval
-        ):
+        while len(b) < self.max_size and (time.time() - s) < self.transmit_interval:
             try:
                 v = q.get(block=False)
                 b.append(v)
@@ -158,6 +160,7 @@ class ServerInterface:
                 headers=headers,
             )
             if r.status_code in [200, 201]:
+                logger.info(f"{tag}: sent 1 file to storage")
                 return r
             else:
                 logger.error(
@@ -177,12 +180,12 @@ class ServerInterface:
             )
             if r.status_code in [200, 201]:
                 logger.info(
-                    f"{tag}: sent {len(b)} item(s) at {len(b) / (time.time() - s):.2f} items/s"
+                    f"{tag}: sent {len(b)} line(s) at {len(b) / (time.time() - s):.2f} lines/s"
                 )
                 return r
             else:
                 logger.error(
-                    f"{tag}: server responded error {r.status_code} for {len(b)} item(s) during POST: {r.text}"
+                    f"{tag}: server responded error {r.status_code} for {len(b)} line(s) during POST: {r.text}"
                 )
         except Exception as e:
             logger.error("%s: no response received during POST: %s", tag, e)
@@ -190,14 +193,14 @@ class ServerInterface:
         retry += 1
         if retry < self.retry_max:
             logger.warning(
-                f"{tag}: retry {retry}/{self.retry_max} for {len(b)} item(s)"
+                f"{tag}: retry {retry}/{self.retry_max} for {len(b)} line(s)"
             )
             time.sleep(min(self.retry_wait_min * (2**retry), self.retry_wait_max))
             for i in b:
                 q.put(i, block=False)
             return self._post_v1(url, headers, q, b, client=client, retry=retry)
         else:
-            logger.critical(f"{tag}: failed to send {len(b)} item(s)")
+            logger.critical(f"{tag}: failed to send {len(b)} line(s)")
             return None
 
 
@@ -214,13 +217,22 @@ def make_compat_data_v1(data, timestamp, step):
 
 def make_compat_file_v1(file, timestamp, step):
     batch = []
-    for k, v in file.items():
-        i = {
-            "fileName": f"{v._name}{v._ext}",
-            "size": v._size,
-            "fileType": v._ext[1:],
-            "logName": k,
-            "step": step,
-        }
-        batch.append(i)
+    for k, fl in file.items():
+        for f in fl:
+            i = {
+                "fileName": f"{f._name}{f._ext}",
+                "size": f._size,
+                "fileType": f._ext[1:],
+                "logName": k,
+                "step": step,
+            }
+            batch.append(i)
     return json.dumps({"files": batch}).encode()
+
+
+def make_compat_storage_v1(f, fl):
+    # workaround for lack of file ident on server side
+    for i in fl:
+        if next(iter(i.keys())) == f"{f._name}{f._ext}":
+            return next(iter(i.values()))
+    return None
