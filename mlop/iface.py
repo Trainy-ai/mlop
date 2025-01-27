@@ -33,7 +33,7 @@ class ServerInterface:
 
         self.client = httpx.Client(
             http2=True,
-            verify=False,  # fix
+            verify=False,  # TODO: enable ssl
             proxy=settings.http_proxy or settings.https_proxy or None,
             limits=httpx.Limits(
                 max_keepalive_connections=settings.x_file_stream_max_conn,
@@ -46,8 +46,8 @@ class ServerInterface:
         )
 
         self.client_storage = httpx.Client(
-            # http1=False, # fix
-            verify=False,  # fix
+            # http1=False, # TODO: set http2
+            verify=False,  # TODO: enable ssl
             proxy=settings.http_proxy or settings.https_proxy or None,
         )
 
@@ -93,7 +93,9 @@ class ServerInterface:
             )
         if file:
             self._thread_file = threading.Thread(
-                target=self._worker_file, args=(file,make_compat_file_v1(file, timestamp, step)), daemon=True
+                target=self._worker_file,
+                args=(file, make_compat_file_v1(file, timestamp, step)),
+                daemon=True,
             )
             self._thread_file.start()
 
@@ -183,7 +185,9 @@ class ServerInterface:
         retry += 1
         self._put_v1(
             url, headers, content, client=client, retry=retry
-        ) if retry < self.retry_max else logger.critical(f"{tag}: failed to put file in storage after {retry} retries")
+        ) if retry < self.retry_max else logger.critical(
+            f"{tag}: failed to put file in storage after {retry} retries"
+        )
 
     def _post_v1(self, url, headers, q, b=[], client=None, retry=0):
         b = []
@@ -192,8 +196,7 @@ class ServerInterface:
             content = self._queue_iter(q, b) if isinstance(q, queue.Queue) else q
             r = client.post(
                 url,
-                # content=iter(q.get, None),
-                content=content,
+                content=content,  # iter(q.get, None),
                 headers=headers,
             )
             if r.status_code in [200, 201]:

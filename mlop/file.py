@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import tempfile
+import uuid
 
 from PIL import Image as PILImage
 
@@ -19,22 +20,22 @@ class File:
         path: str,
         name: str | None = None,
     ) -> None:
-        self._path = path
+        self._path = os.path.abspath(self._tmp)
         self._id = self._hash()
 
         if not name:
             name = self._id
         elif not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             e = ValueError(
-                f"invalid file name: {name}; file name must only contain alphanumeric characters, dashes, underscores, and periods."
+                f"invalid file name: {name}; file name must only contain alphanumeric characters, dashes, underscores, and periods"
             )
             logger.warning("File: %s", e)
             name = re.sub(r"[^a-zA-Z0-9_\-.]", "-", name)  # raise e
         self._name = name
+        self._ext = os.path.splitext(self._path)[-1]
         self._type = self._mimetype()
         self._stat = os.stat(self._path)
         self._size = self._stat.st_size  # os.path.getsize(self._path)
-        self._ext = os.path.splitext(self._path)[-1]
         self._url = None
 
     def _mimetype(self) -> str:
@@ -43,14 +44,13 @@ class File:
     def _hash(self) -> str:  # do not truncate
         return hashlib.sha256(self._path.encode()).hexdigest()
 
-    def _mkcopy(self, name, work_dir) -> None:
-        # self._name = name
-        self._tmp = f"{work_dir}/files/{self._name}-{self._id}{self._ext}"
-        os.makedirs(os.path.dirname(self._tmp), exist_ok=True)
-        shutil.copyfile(self._path, self._tmp)
-        if hasattr(self, "_image"):
-            os.remove(self._path)
-        self._path = self._tmp
+    def _mkcopy(self, work_dir) -> None:
+        if not self._tmp:
+            self._tmp = f"{work_dir}/files/{self._name}-{self._id}{self._ext}"
+            shutil.copyfile(self._path, self._tmp)
+            if hasattr(self, "_image"):
+                os.remove(self._path)
+            self._path = os.path.abspath(self._tmp)
 
 
 class Image(File):
@@ -59,11 +59,16 @@ class Image(File):
         data: any,  # Union[PILImage.Image, np.ndarray],
         caption: str | None = None,
     ) -> None:
+        self._name = caption or "image"
+        self._id = f"{uuid.uuid4()}{uuid.uuid4()}".replace("-", "")
+        self._ext = ".png"
+
         if isinstance(data, str):
-            logger.debug("Image: used PILImage from path")
+            logger.debug("Image: used file")
             self._image = "file"  # self._image = PILImage.open(data)
-            path = os.path.abspath(data)
+            self._path = os.path.abspath(data)
         else:
+            self._path = None
             if isinstance(data, PILImage.Image):
                 logger.debug("Image: used PILImage")
                 self._image = data
@@ -80,11 +85,19 @@ class Image(File):
                 else:
                     logger.debug("Image: attempted conversion from array")
                     self._image = make_compat_numpy(data)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".PNG") as tmp:
-                self._image.save(tmp.name, format="PNG")
-                path = os.path.abspath(tmp.name)
 
-        super().__init__(path=path, name=caption)
+    def load(self, work_dir=None):
+        if not self._path:
+            if work_dir:
+                self._tmp = f"{work_dir}/files/{self._name}-{self._id}{self._ext}"
+                self._image.save(self._tmp, format=self._ext[1:])
+                self._path = os.path.abspath(self._tmp)
+            else:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=self._ext) as tmp:
+                    self._image.save(tmp.name, format=self._ext[1:])
+                    self._path = os.path.abspath(tmp.name)
+
+        super().__init__(path=self._path, name=self._name)
         if not self._type.startswith("image/"):
             logger.error(
                 f"Image: proceeding with potentially incompatible mime type: {self._type}"
@@ -103,7 +116,7 @@ def make_compat_matplotlib(val: any) -> any:
             val = val.figure
             if not isinstance(val, Figure):
                 e = ValueError(
-                    "Invalid matplotlib object; must be a matplotlib.pyplot or matplotlib.figure.Figure object."
+                    "Invalid matplotlib object; must be a matplotlib.pyplot or matplotlib.figure.Figure object"
                 )
                 logger.critical("Image failed: %s", e)
                 raise e

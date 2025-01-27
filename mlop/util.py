@@ -61,7 +61,7 @@ def val_to_json(val: any) -> Union[Sequence, dict]:
     if isinstance(val, (int, float, str, bool)):
         return val
     elif isinstance(val, (list, tuple, range)):
-        raise NotImplementedError()  # for files
+        raise NotImplementedError()  # TODO: for files
 
 
 def get_class(val: any) -> str:

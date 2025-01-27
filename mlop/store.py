@@ -62,7 +62,7 @@ class DataStore:
             pass
         self._stop_event.set()
         if self._thread is not None:
-            self._thread.join(timeout=None)  # investigate
+            self._thread.join(timeout=None)  # TODO: investigate hanging
             self._thread = None
         self.conn.commit()
         self.conn.close()

@@ -5,7 +5,7 @@ import queue
 import threading
 import time
 
-from .file import File
+from .file import File, Image
 from .iface import ServerInterface
 from .sets import Settings
 from .store import DataStore
@@ -85,12 +85,12 @@ class Ops:
     def _log(self, data, step) -> None:
         if not isinstance(data, Mapping):
             e = ValueError(
-                f"Data logged must be of dictionary type; received {type(data).__name__} intsead."
+                f"Data logged must be of dictionary type; received {type(data).__name__} intsead"
             )
             logger.critical("%s: failed: %s", TAG, e)
             raise e
         if any(not isinstance(k, str) for k in data.keys()):
-            e = ValueError("Data logged must have keys of string type.")
+            e = ValueError("Data logged must have keys of string type")
             logger.critical("%s: failed: %s", TAG, e)
             raise e
 
@@ -101,7 +101,7 @@ class Ops:
         else:
             self._step += 1
 
-        # data = data.copy()  # check mutability
+        # data = data.copy()  # TODO: check mutability
         d, f = {}, {}
         for k, v in data.items():
             logger.debug(f"{TAG}: added {k} at step {self._step}")
@@ -111,7 +111,7 @@ class Ops:
             else:
                 d, f = self._op(d, f, k, v)
 
-        # d = dict_to_json(d)  # add serialisation
+        # d = dict_to_json(d)  # TODO: add serialisation
         self._store.insert(
             data=d, file=f, timestamp=t, step=self._step
         ) if self._store else None
@@ -121,8 +121,10 @@ class Ops:
 
     def _op(self, d, f, k, v) -> None:
         if isinstance(v, File):
-            # add step to serialise data for files
-            v._mkcopy(k, self.settings.work_dir())
+            if isinstance(v, Image):
+                v.load(self.settings.work_dir())
+            # TODO: add step to serialise data for files
+            v._mkcopy(self.settings.work_dir()) # key independent
             # d[k] = int(v._id, 16)
             if k not in f:
                 f[k] = [v]

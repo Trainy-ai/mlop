@@ -31,7 +31,7 @@ class OpsInit:
         init_settings = Settings()
         setup_settings = sets.setup(settings=init_settings).settings
 
-        # handle login and settings validation here
+        # TODO: handle login and settings validation here
         setup_settings.update(settings)
         self.settings = setup_settings
 
@@ -39,7 +39,7 @@ class OpsInit:
             self.settings.disable_iface = True
             self.settings.disable_store = True
         else:
-            os.makedirs(setup_settings.work_dir(), exist_ok=True)
+            os.makedirs(f"{setup_settings.work_dir()}/files", exist_ok=True)
             self._logger_setup()
 
     def _logger_setup(self) -> None:
