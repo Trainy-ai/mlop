@@ -3,6 +3,7 @@ import atexit
 import logging
 import queue
 import threading
+import multiprocessing
 import time
 
 from .file import File, Image
@@ -77,7 +78,7 @@ class Ops:
             try:
                 self._log(*self._queue.get(block=False))
             except queue.Empty:
-                continue
+                continue # TODO: reduce resource usage
             except Exception as e:
                 logger.critical("%s: failed: %s", TAG, e)
                 raise e

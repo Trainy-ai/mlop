@@ -20,7 +20,7 @@ class File:
         path: str,
         name: str | None = None,
     ) -> None:
-        self._path = os.path.abspath(self._tmp)
+        self._path = os.path.abspath(path)
         self._id = self._hash()
 
         if not name:
@@ -42,10 +42,11 @@ class File:
         return mimetypes.guess_type(self._path)[0] or "application/octet-stream"
 
     def _hash(self) -> str:  # do not truncate
-        return hashlib.sha256(self._path.encode()).hexdigest()
+        with open(self._path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
 
     def _mkcopy(self, work_dir) -> None:
-        if not self._tmp:
+        if not hasattr(self, "_tmp"):
             self._tmp = f"{work_dir}/files/{self._name}-{self._id}{self._ext}"
             shutil.copyfile(self._path, self._tmp)
             if hasattr(self, "_image"):

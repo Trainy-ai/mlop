@@ -32,7 +32,7 @@ class ServerInterface:
         self.headers_data.update({"Content-Type": "application/x-ndjson"})
 
         self.client = httpx.Client(
-            http2=True,
+            # http2=True,
             verify=False,  # TODO: enable ssl
             proxy=settings.http_proxy or settings.https_proxy or None,
             limits=httpx.Limits(
