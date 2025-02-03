@@ -2,12 +2,13 @@ from datetime import datetime
 import builtins
 import logging
 import os
+import queue
 import random
 import sys
 import time
 
 from . import sets
-from .log import ColorFormatter, StreamHandler, input_hook
+from .log import ColorFormatter, ConsoleHandler, input_hook
 from .ops import Ops
 from .sets import Settings
 from .sys import System
@@ -23,11 +24,13 @@ class OpsInit:
         self.config: dict[str, any] = {}
 
     def init(self) -> Ops:
-        op = Ops(config=self.config, settings=self.settings)
+        op = Ops(config=self.config, settings=self.settings, message=self.message)
         op.start()
         return op
 
     def setup(self, settings) -> None:
+        self.message = queue.Queue()
+
         init_settings = Settings()
         setup_settings = sets.setup(settings=init_settings).settings
 
@@ -80,8 +83,8 @@ class OpsInit:
         )
         file_handler.setFormatter(file_formatter)
         console.addHandler(file_handler)
-        sys.stdout = StreamHandler(console, logging.INFO, sys.stdout, "stdout")
-        sys.stderr = StreamHandler(console, logging.ERROR, sys.stderr, "stderr")
+        sys.stdout = ConsoleHandler(console, self.message, logging.INFO, sys.stdout, "stdout")
+        sys.stderr = ConsoleHandler(console, self.message, logging.ERROR, sys.stderr, "stderr")
 
         if self.settings.mode == "debug":
             self.settings.system = System().info(debug=True)

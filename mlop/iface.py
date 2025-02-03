@@ -16,6 +16,7 @@ class ServerInterface:
     def __init__(self, settings: Settings) -> None:
         self.url_data = settings.url_data
         self.url_file = settings.url_file
+        self.url_message = settings.url_message
         self.url_status = settings.url_status
         self.url_view_op = (
             f"{settings.url_view}/{settings.user}/{settings.project}/{settings._op_id}"
@@ -96,6 +97,7 @@ class ServerInterface:
         self,
         data: dict[str, any] | None = None,
         file: None = None,
+        message: queue.Queue | None = None,
         timestamp: int | None = None,
         step: int | None = None,
     ) -> None:
@@ -108,8 +110,17 @@ class ServerInterface:
                 target=self._worker_file,
                 args=(file, make_compat_file_v1(file, timestamp, step)),
                 daemon=True,
-            )
+            )  # TODO: batching
             self._thread_file.start()
+        if message:
+            while not message.empty():
+                m = message.get(block=False)
+                _ = self._post_v1(
+                    self.url_message,
+                    self.headers,
+                    make_compat_message_v1(m, step),
+                    client=self.client,
+                )  # TODO: batching
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -271,6 +282,18 @@ def make_compat_storage_v1(f, fl):
         if next(iter(i.keys())) == f"{f._name}{f._ext}":
             return next(iter(i.values()))
     return None
+
+
+def make_compat_message_v1(message, step):
+    return json.dumps(
+        {
+            "time": int(message["t"] * 1000),  # convert to ms
+            "step": int(step),
+            "message": message["m"],
+            "lineNumber": message["c"],
+            "logType": "INFO" if message["l"] == logging.INFO else "ERROR",
+        }
+    ).encode()
 
 
 def make_compat_status_v1(status, data, settings):

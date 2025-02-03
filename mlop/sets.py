@@ -44,6 +44,7 @@ class Settings:
     url: str = "http://localhost:3000"
     url_data: str = f"{url}/ingest/metrics"
     url_file: str = f"{url}/files"
+    url_message: str = f"{url}/ingest/logs"
     url_status: str = f"{url}/status"
     url_view: str = f"{url}/view"
 

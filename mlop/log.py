@@ -2,6 +2,7 @@ import builtins
 import logging
 import os
 import sys
+import time
 
 from .sets import get_console
 
@@ -59,16 +60,21 @@ class ColorFormatter(logging.Formatter):
         return f"{prefix}{color}{style}{super().format(record)}{ANSI.reset}"
 
 
-class StreamHandler:
-    def __init__(self, logger, level=logging.INFO, stream=sys.stdout, type="stdout"):
+class ConsoleHandler:
+    def __init__(self, logger, queue, level=logging.INFO, stream=sys.stdout, type="stdout"):
         self.logger = logger
+        self.queue = queue
         self.level = level
         self.stream = stream
         self.type = type
+        self.count = 0
 
     def write(self, buf):
         for line in buf.rstrip().splitlines():
-            self.logger.log(self.level, line.rstrip())
+            self.count += 1
+            m = line.rstrip()
+            self.queue.put({"c": self.count, "t": int(time.time()), "l": self.level, "m": m})
+            self.logger.log(self.level, m)
         self.stream.write(buf)
         self.stream.flush()
 
