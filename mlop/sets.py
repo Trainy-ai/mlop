@@ -1,5 +1,6 @@
 import logging
 import os
+import queue
 import sys
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
@@ -16,6 +17,7 @@ class Settings:
     mode: str = "perf"  # noop | debug | perf
     heartbeat_seconds: int = 2**2
     system: dict[str, any] = {}
+    message: queue.Queue = queue.Queue()
     disable_store: bool = False
     disable_iface: bool = False
 

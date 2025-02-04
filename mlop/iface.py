@@ -67,6 +67,10 @@ class ServerInterface:
         self._thread_file = None
         self._thread_storage = None
 
+        self._queue_message = settings.message
+        self._buffer_message = None
+        self._thread_message = None
+
         r = self._post_v1(
             self.url_status,
             self.headers,
@@ -74,7 +78,7 @@ class ServerInterface:
             client=self.client,
         )
         try:
-            logger.info(f"{tag}: started: {r.json()['message'].lower()}")
+            logger.info(f"{tag}: started: {r.json()['message']}")
         except Exception as e:
             logger.critical("%s: failed to start: %s", tag, e)
 
@@ -92,12 +96,24 @@ class ServerInterface:
                 daemon=True,
             )
             self._thread_data.start()
+        if self._thread_message is None:
+            self._thread_message = threading.Thread(
+                target=self._worker_publish,
+                args=(
+                    self.url_message,
+                    self.headers,
+                    self._queue_message,
+                    self._buffer_message,
+                    self._stop_event.is_set,
+                ),
+                daemon=True,
+            )
+            self._thread_message.start()
 
     def publish(
         self,
         data: dict[str, any] | None = None,
         file: None = None,
-        message: queue.Queue | None = None,
         timestamp: int | None = None,
         step: int | None = None,
     ) -> None:
@@ -112,27 +128,13 @@ class ServerInterface:
                 daemon=True,
             )  # TODO: batching
             self._thread_file.start()
-        if message:
-            while not message.empty():
-                m = message.get(block=False)
-                _ = self._post_v1(
-                    self.url_message,
-                    self.headers,
-                    make_compat_message_v1(m, step),
-                    client=self.client,
-                )  # TODO: batching
 
     def stop(self) -> None:
         self._stop_event.set()
-        if self._thread_data is not None:
-            self._thread_data.join(timeout=self._wait)
-            self._thread_data = None
-        if self._thread_file is not None:
-            self._thread_file.join(timeout=self._wait)
-            self._thread_file = None
-        if self._thread_storage is not None:
-            self._thread_storage.join(timeout=self._wait)
-            self._thread_storage = None
+        for t in [self._thread_data, self._thread_file, self._thread_storage]:
+            if t is not None:
+                t.join(timeout=self._wait)
+                t = None
         logger.info(f"{tag}: find uploaded data at {self.url_view_op}")
 
     def _worker_publish(self, e, h, q, b, stop):
@@ -251,14 +253,16 @@ class ServerInterface:
 
 
 def make_compat_data_v1(data, timestamp, step):
-    batch = []
-    i = {
-        "time": int(timestamp * 1000),  # convert to ms
-        "step": int(step),
-        "data": data,
-    }
-    batch.append(json.dumps(i))
-    return ("\n".join(batch) + "\n").encode("utf-8")
+    line = [
+        json.dumps(
+            {
+                "time": int(timestamp * 1000),  # convert to ms
+                "step": int(step),
+                "data": data,
+            }
+        )
+    ]
+    return ("\n".join(line) + "\n").encode("utf-8")
 
 
 def make_compat_file_v1(file, timestamp, step):
@@ -284,16 +288,18 @@ def make_compat_storage_v1(f, fl):
     return None
 
 
-def make_compat_message_v1(message, step):
-    return json.dumps(
-        {
-            "time": int(message["t"] * 1000),  # convert to ms
-            "step": int(step),
-            "message": message["m"],
-            "lineNumber": message["c"],
-            "logType": "INFO" if message["l"] == logging.INFO else "ERROR",
-        }
-    ).encode()
+def make_compat_message_v1(level, message, timestamp, step):
+    line = [
+        json.dumps(
+            {
+                "time": int(timestamp * 1000),  # convert to ms
+                "message": message,
+                "lineNumber": step,
+                "logType": "INFO" if level == logging.INFO else "ERROR",
+            }
+        )
+    ]
+    return ("\n".join(line) + "\n").encode("utf-8")
 
 
 def make_compat_status_v1(status, data, settings):

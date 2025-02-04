@@ -35,10 +35,9 @@ class OpsMonitor:
 
 
 class Ops:
-    def __init__(self, config, settings, message) -> None:
+    def __init__(self, config, settings) -> None:
         self.config = config
         self.settings = settings
-        self.message = message
         self._monitor = OpsMonitor(op=self)
 
         self._store = (
@@ -118,7 +117,7 @@ class Ops:
             data=d, file=f, timestamp=t, step=self._step
         ) if self._store else None
         self._iface.publish(
-            data=d, file=f, message=self.message, timestamp=t, step=self._step
+            data=d, file=f, timestamp=t, step=self._step
         ) if self._iface else None
 
     def _op(self, d, f, k, v) -> None:

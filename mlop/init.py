@@ -24,13 +24,11 @@ class OpsInit:
         self.config: dict[str, any] = {}
 
     def init(self) -> Ops:
-        op = Ops(config=self.config, settings=self.settings, message=self.message)
+        op = Ops(config=self.config, settings=self.settings)
         op.start()
         return op
 
     def setup(self, settings) -> None:
-        self.message = queue.Queue()
-
         init_settings = Settings()
         setup_settings = sets.setup(settings=init_settings).settings
 
@@ -82,9 +80,9 @@ class OpsInit:
             datefmt="%H:%M:%S",
         )
         file_handler.setFormatter(file_formatter)
-        console.addHandler(file_handler)
-        sys.stdout = ConsoleHandler(console, self.message, logging.INFO, sys.stdout, "stdout")
-        sys.stderr = ConsoleHandler(console, self.message, logging.ERROR, sys.stderr, "stderr")
+        console.addHandler(file_handler)  # TODO: fix slow file writes
+        sys.stdout = ConsoleHandler(console, self.settings.message, logging.INFO, sys.stdout, "stdout")
+        sys.stderr = ConsoleHandler(console, self.settings.message, logging.ERROR, sys.stderr, "stderr")
 
         if self.settings.mode == "debug":
             self.settings.system = System().info(debug=True)

@@ -4,6 +4,7 @@ import os
 import sys
 import time
 
+from .iface import make_compat_message_v1
 from .sets import get_console
 
 builtins_input = builtins.input
@@ -73,7 +74,7 @@ class ConsoleHandler:
         for line in buf.rstrip().splitlines():
             self.count += 1
             m = line.rstrip()
-            self.queue.put({"c": self.count, "t": int(time.time()), "l": self.level, "m": m})
+            self.queue.put(make_compat_message_v1(self.level, m, int(time.time()), self.count))
             self.logger.log(self.level, m)
         self.stream.write(buf)
         self.stream.flush()

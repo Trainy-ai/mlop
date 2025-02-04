@@ -1,8 +1,12 @@
+import logging
 import platform
 
 import psutil
 
 from .util import to_human
+
+logger = logging.getLogger(f"{__name__.split('.')[0]}")
+tag = "System"
 
 
 class System:
@@ -27,6 +31,8 @@ class System:
         self.boot_time = psutil.boot_time()
         self.users = [i._asdict() for i in psutil.users()]
 
+        self.gpu = self.get_gpu()
+
     def __getattr__(self, name):
         return self.get_psutil(name)
 
@@ -35,6 +41,39 @@ class System:
             return getattr(psutil, name)
         else:
             return None
+
+    def get_gpu(self):
+        d = {}
+        try:
+            import pynvml
+
+            try:
+                pynvml.nvmlInit()
+                logger.info(f"{tag}: NVIDIA GPU detected")
+                d["nvidia"] = {
+                    "count": pynvml.nvmlDeviceGetCount(),
+                    "driver": pynvml.nvmlSystemGetDriverVersion(),
+                }
+                for i in range(d["nvidia"]["count"]):
+                    handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+                    d["nvidia"][i] = {
+                        "name": pynvml.nvmlDeviceGetName(handle),
+                        "memory": {
+                            "total": to_human(
+                                pynvml.nvmlDeviceGetMemoryInfo(handle).total
+                            ),
+                        },
+                        "temp": pynvml.nvmlDeviceGetTemperature(
+                            handle, pynvml.NVML_TEMPERATURE_GPU
+                        ),
+                    }
+            except pynvml.NVMLError_LibraryNotFound:
+                logger.debug(f"{tag}: NVIDIA driver not found")
+            except Exception as e:
+                logger.error("%s: NVIDIA error: %s", tag, e)
+        except ImportError:
+            logger.debug(f"{tag}: pynvml not found")
+        return d
 
     def info(self, debug=False):
         d = {
@@ -53,6 +92,8 @@ class System:
             },
             "boot_time": self.boot_time,
         }
+        if self.gpu:
+            d["gpu"] = self.gpu
         if debug:
             d = {
                 **d,
