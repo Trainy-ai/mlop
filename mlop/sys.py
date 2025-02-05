@@ -1,3 +1,4 @@
+import importlib.metadata
 import logging
 import os
 import platform
@@ -131,5 +132,11 @@ class System:
                 "disk": self.disk,
                 "network": self.net_if_addrs,
                 "users": self.users,
+                "requirements": sorted(
+                    [
+                        f"{p.metadata['Name']}=={p.version}"
+                        for p in importlib.metadata.distributions()
+                    ]
+                ),
             }
         return d
