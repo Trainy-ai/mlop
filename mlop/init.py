@@ -85,11 +85,10 @@ class OpsInit:
         sys.stderr = ConsoleHandler(console, self.settings.message, logging.ERROR, sys.stderr, "stderr")
 
         if self.settings.mode == "debug":
-            self.settings.system = System().info(debug=True)
             builtins.input = lambda prompt="": input_hook(prompt, logger=console)
-        else:
-            self.settings.system = System().info()
-        to_json([self.settings.system], f"{self.settings.work_dir()}/sys.json")
+        
+        self.settings.system = System(self.settings)
+        to_json([self.settings.system.info()], f"{self.settings.work_dir()}/sys.json")
 
 
 def init(

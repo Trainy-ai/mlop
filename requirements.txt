@@ -1,3 +1,4 @@
+GitPython
+httpx[http2]
 pillow
 psutil
-httpx[http2]

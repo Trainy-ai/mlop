@@ -4,18 +4,17 @@ import sqlite3
 import time
 import threading
 
+from .sets import Settings
+
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Store"
 
 
 class DataStore:
-    def __init__(self, settings) -> None:
-        self.table_data = settings.store_table_data
-        self.table_file = settings.store_table_file
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+
         self.db = f"{settings.work_dir()}/{settings.store_db}"
-        self.max_size = settings.store_max_size
-        self.aggregate_interval = settings.store_aggregate_interval
-        self._wait = settings.store_aggregate_interval
 
         self.conn = sqlite3.connect(
             self.db, check_same_thread=False
@@ -35,7 +34,7 @@ class DataStore:
             self._thread.start()
 
         self.cursor.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.table_data}(
+            CREATE TABLE IF NOT EXISTS {self.settings.store_table_data}(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 time INTEGER NOT NULL,
                 step INTEGER NOT NULL,
@@ -44,7 +43,7 @@ class DataStore:
             );
         """)
         self.cursor.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.table_file}(
+            CREATE TABLE IF NOT EXISTS {self.settings.store_table_file}(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 time INTEGER NOT NULL,
                 step INTEGER NOT NULL,
@@ -73,13 +72,17 @@ class DataStore:
             batch_data, batch_file = [], []
             start = time.time()
             while (
-                time.time() - start < self.aggregate_interval
-                and len(batch_data) < self.max_size
-                and len(batch_file) < self.max_size
+                time.time() - start < self.settings.store_aggregate_interval
+                and len(batch_data) < self.settings.store_max_size
+                and len(batch_file) < self.settings.store_max_size
             ):
                 try:
                     d, f, t, s = self._queue.get(
-                        timeout=max(0, self.aggregate_interval - (time.time() - start))
+                        timeout=max(
+                            0,
+                            self.settings.store_aggregate_interval
+                            - (time.time() - start),
+                        )
                     )
                     if d != {}:
                         batch_data.append(
@@ -108,23 +111,19 @@ class DataStore:
                 if d != []:
                     self.cursor.executemany(
                         f"""
-                        INSERT INTO {self.table_data} (time, step, key, value) VALUES (?, ?, ?, ?)
+                        INSERT INTO {self.settings.store_table_data} (time, step, key, value) VALUES (?, ?, ?, ?)
                         """,
-                        [
-                            (e["t"], e["s"], k, v)
-                            for e in d
-                            for k, v in e["d"].items()
-                        ],
+                        [(e["t"], e["s"], k, v) for e in d for k, v in e["d"].items()],
                     )
                     logger.info(f"{tag}: inserted {len(d)} line(s)")
                 if f != []:
                     self.cursor.executemany(
                         f"""
-                        INSERT INTO {self.table_file} (time, step, name, aid) VALUES (?, ?, ?, ?)
+                        INSERT INTO {self.settings.store_table_file} (time, step, name, aid) VALUES (?, ?, ?, ?)
                         """,
                         [
                             (e["t"], e["s"], f"{fe._name}{fe._ext}", fe._id)
-                            for e in f 
+                            for e in f
                             # for fe in e["f"].values()
                             for fel in e["f"].values()
                             for fe in fel

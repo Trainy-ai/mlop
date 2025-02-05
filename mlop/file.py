@@ -16,6 +16,7 @@ logger = logging.getLogger(f"{__name__.split('.')[0]}")
 VALID_CHAR = re.compile(r"^[a-zA-Z0-9_\-.]+$")
 INVALID_CHAR = re.compile(r"[^a-zA-Z0-9_\-.]")
 
+
 class File:
     def __init__(
         self,

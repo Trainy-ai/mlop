@@ -1,8 +1,11 @@
 import logging
+import os
 import platform
 
+from git import Repo
 import psutil
 
+from .sets import Settings
 from .util import to_human
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
@@ -10,7 +13,9 @@ tag = "System"
 
 
 class System:
-    def __init__(self):
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+
         self.uname = platform.uname()._asdict()
 
         self.cpu_count = psutil.cpu_count
@@ -27,11 +32,11 @@ class System:
             ]
             for i in psutil.net_if_addrs()
         }
-
         self.boot_time = psutil.boot_time()
         self.users = [i._asdict() for i in psutil.users()]
 
         self.gpu = self.get_gpu()
+        self.git = self.get_git()
 
     def __getattr__(self, name):
         return self.get_psutil(name)
@@ -68,14 +73,38 @@ class System:
                         ),
                     }
             except pynvml.NVMLError_LibraryNotFound:
-                logger.debug(f"{tag}: NVIDIA driver not found")
+                logger.debug(f"{tag}: NVIDIA: driver not found")
             except Exception as e:
-                logger.error("%s: NVIDIA error: %s", tag, e)
+                logger.error("%s: NVIDIA: error: %s", tag, e)
         except ImportError:
-            logger.debug(f"{tag}: pynvml not found")
+            logger.debug(f"{tag}: NVIDIA: pynvml not found")
         return d
 
-    def info(self, debug=False):
+    def get_git(self):
+        d = {}
+        try:
+            repo = Repo(
+                f"{self.settings.work_dir()}" or os.getcwd(),
+                search_parent_directories=True,
+            )
+            try:
+                url = repo.remotes["origin"].url
+            except IndexError:
+                url = None
+            d = {
+                "url": url,
+                "name": repo.config_reader().get_value("user", "name"),
+                "email": repo.config_reader().get_value("user", "email"),
+                "root": repo.git.rev_parse("--show-toplevel"),
+                "dirty": repo.is_dirty(),
+                "branch": repo.head.ref.name,
+                "commit": repo.head.commit.hexsha,
+            }
+        except Exception as e:
+            logger.warning("%s: git: repository is invalid: %s", tag, e)
+        return d
+
+    def info(self):
         d = {
             "platform": self.uname,
             "cpu": {
@@ -94,7 +123,9 @@ class System:
         }
         if self.gpu:
             d["gpu"] = self.gpu
-        if debug:
+        if self.git:
+            d["git"] = self.git
+        if self.settings.mode == "debug":
             d = {
                 **d,
                 "disk": self.disk,
