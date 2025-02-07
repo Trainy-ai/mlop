@@ -65,6 +65,7 @@ class ServerInterface:
             make_compat_status_v1("INIT", self.settings.system.info(), settings),
             client=self.client,
         )
+        _ = self.settings.system.monitor()
         try:
             logger.info(f"{tag}: started: {r.json()['message']}")
         except Exception as e:

@@ -2,12 +2,13 @@ import importlib.metadata
 import logging
 import os
 import platform
+import time
 
 from git import Repo
 import psutil
 
 from .sets import Settings
-from .util import to_human
+from .util import to_human  # TODO: move to server side
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "System"
@@ -18,6 +19,7 @@ class System:
         self.settings = settings
 
         self.uname = platform.uname()._asdict()
+        self.timezone = list(time.tzname)
 
         self.cpu_count = psutil.cpu_count
         self.cpu_freq = [i._asdict() for i in psutil.cpu_freq(percpu=True)]
@@ -36,6 +38,19 @@ class System:
         self.boot_time = psutil.boot_time()
         self.users = [i._asdict() for i in psutil.users()]
 
+        self.pid = os.getpid()
+        self.proc = psutil.Process(pid=self.pid)
+        with self.proc.oneshot():  # perf
+            self.proc_info = self.proc.as_dict(attrs=["exe", "cmdline"])
+            self.proc_child = self.proc.children(recursive=True)
+            self.pid_child = [p.pid for p in self.proc_child] + [self.pid]
+        if self.settings.mode == "debug":  # privacy guard
+            self.environ = self.proc.environ()
+            self.requirements = [
+                f"{p.metadata['Name']}=={p.version}"
+                for p in importlib.metadata.distributions()
+            ]
+
         self.gpu = self.get_gpu()
         self.git = self.get_git()
 
@@ -50,7 +65,7 @@ class System:
 
     def get_gpu(self):
         d = {}
-        try:
+        try:  # NVIDIA
             import pynvml
 
             try:
@@ -59,20 +74,32 @@ class System:
                 d["nvidia"] = {
                     "count": pynvml.nvmlDeviceGetCount(),
                     "driver": pynvml.nvmlSystemGetDriverVersion(),
+                    "devices": [],
+                    "handles": [],
                 }
                 for i in range(d["nvidia"]["count"]):
-                    handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-                    d["nvidia"][i] = {
-                        "name": pynvml.nvmlDeviceGetName(handle),
-                        "memory": {
-                            "total": to_human(
-                                pynvml.nvmlDeviceGetMemoryInfo(handle).total
+                    h = pynvml.nvmlDeviceGetHandleByIndex(i)
+                    d["nvidia"]["handles"].append(h)
+                    d["nvidia"]["devices"].append(
+                        {
+                            "name": pynvml.nvmlDeviceGetName(h),
+                            "memory": {
+                                "total": to_human(
+                                    pynvml.nvmlDeviceGetMemoryInfo(h).total
+                                ),
+                            },
+                            "temp": pynvml.nvmlDeviceGetTemperature(
+                                h, pynvml.NVML_TEMPERATURE_GPU
                             ),
-                        },
-                        "temp": pynvml.nvmlDeviceGetTemperature(
-                            handle, pynvml.NVML_TEMPERATURE_GPU
-                        ),
-                    }
+                            "pid": [
+                                p.pid
+                                for p in (
+                                    pynvml.nvmlDeviceGetComputeRunningProcesses(h)
+                                    + pynvml.nvmlDeviceGetGraphicsRunningProcesses(h)
+                                )
+                            ],
+                        }
+                    )
             except pynvml.NVMLError_LibraryNotFound:
                 logger.debug(f"{tag}: NVIDIA: driver not found")
             except Exception as e:
@@ -107,7 +134,12 @@ class System:
 
     def info(self):
         d = {
+            "process": {
+                **self.proc_info,
+                "pid": self.pid,
+            },
             "platform": self.uname,
+            "timezone": self.timezone,
             "cpu": {
                 "physical": self.cpu_count(logical=False),
                 "virtual": self.cpu_count(logical=True),
@@ -117,26 +149,99 @@ class System:
                 },
             },
             "memory": {
-                "virtual": to_human(self.svmem["total"]),
+                "virt": to_human(self.svmem["total"]),
                 "swap": to_human(self.sswap["total"]),
             },
             "boot_time": self.boot_time,
         }
         if self.gpu:
-            d["gpu"] = self.gpu
+            d["gpu"] = {k: v for k, v in self.gpu.items() if k != "handles"}
         if self.git:
             d["git"] = self.git
         if self.settings.mode == "debug":
+            d["process"]["environ"] = self.environ
             d = {
                 **d,
                 "disk": self.disk,
                 "network": self.net_if_addrs,
                 "users": self.users,
-                "requirements": sorted(
-                    [
-                        f"{p.metadata['Name']}=={p.version}"
-                        for p in importlib.metadata.distributions()
-                    ]
-                ),
+                "requirements": self.requirements,
             }
+        return d
+
+    def monitor(self):
+        d = {
+            "cpu": {
+                "percent": psutil.cpu_percent(percpu=True),
+                "freq": [i.current for i in psutil.cpu_freq(percpu=True)],
+            },
+            "memory": {
+                "virt": {
+                    k: to_human(v)
+                    for k, v in psutil.virtual_memory()._asdict().items()
+                    if k != "percent"
+                },
+            },
+            "disk": {
+                "out": to_human(psutil.disk_io_counters().read_bytes),
+                "in": to_human(psutil.disk_io_counters().write_bytes),
+                "usage": {
+                    k: to_human(v)
+                    for k, v in psutil.disk_usage(self.settings.work_dir())
+                    ._asdict()
+                    .items()
+                    if k != "percent"
+                },
+            },
+            "network": {
+                "out": to_human(psutil.net_io_counters().bytes_sent),
+                "in": to_human(psutil.net_io_counters().bytes_recv),
+            },
+        }
+        with self.proc.oneshot():  # perf
+            d["process"] = {
+                **self.proc.as_dict(
+                    attrs=["status", "cpu_percent", "memory_percent", "num_threads"]
+                ),
+                "memory": to_human(self.proc.memory_info().rss),
+            }
+        if self.gpu:
+            d["gpu"] = {}
+            if self.gpu.get("nvidia"):
+                import pynvml
+
+                d["gpu"]["nvidia"] = {}
+                d["gpu"]["nvidia"]["devices"] = [
+                    {
+                        "name": pynvml.nvmlDeviceGetName(h),
+                        "temp": pynvml.nvmlDeviceGetTemperature(
+                            h, pynvml.NVML_TEMPERATURE_GPU
+                        ),
+                        "gpu_percent": pynvml.nvmlDeviceGetUtilizationRates(h).gpu,
+                        "memory": {
+                            "percent": pynvml.nvmlDeviceGetUtilizationRates(h).memory,
+                            "used": to_human(pynvml.nvmlDeviceGetMemoryInfo(h).used),
+                            "total": to_human(pynvml.nvmlDeviceGetMemoryInfo(h).total),
+                        },
+                        "power": {
+                            "usage": pynvml.nvmlDeviceGetPowerUsage(h),
+                            "limit": pynvml.nvmlDeviceGetEnforcedPowerLimit(h),
+                        },
+                        "pid": [
+                            p.pid
+                            for p in (
+                                pynvml.nvmlDeviceGetComputeRunningProcesses(h)
+                                + pynvml.nvmlDeviceGetGraphicsRunningProcesses(h)
+                            )
+                        ],
+                    }
+                    for h in self.gpu["nvidia"]["handles"]
+                ]
+        if self.settings.mode == "debug":
+            d["memory"]["swap"] = {
+                k: to_human(v)
+                for k, v in psutil.swap_memory()._asdict().items()
+                if k != "percent"
+            }
+        # exit(1)
         return d
