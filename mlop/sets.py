@@ -11,11 +11,10 @@ class Settings:
     tag: str = f"{__name__.split('.')[0]}"
     dir: str = str(os.path.abspath(os.getcwd()))
 
-    auth: str = "api_125248de6bac17f1106e122902a30207"
+    auth: str = "test"
     user: str = "test"
     project: str = "default"
     mode: str = "perf"  # noop | debug | perf
-    heartbeat_seconds: int = 2**2
     system: dict[str, any] = {}
     message: queue.Queue = queue.Queue()
     disable_store: bool = False
@@ -42,12 +41,14 @@ class Settings:
     x_file_stream_max_conn: int = 2**5
     x_file_stream_max_size: int = 2**18
     x_file_stream_transmit_interval: int = 2**3
+    x_stats_sampling_interval: int = 2**2
+    x_stats_reporting_prefix: str = "_sys/"
 
     url: str = "http://localhost:3000"
     url_data: str = f"{url}/ingest/metrics"
     url_file: str = f"{url}/files"
     url_message: str = f"{url}/ingest/logs"
-    url_status: str = "https://mlop2.vercel.app/api/create-run/"
+    url_status: str = "http://localhost:5000/api/create-run/"
     url_view: str = f"{url}/view"
 
     def update(self, settings) -> None:

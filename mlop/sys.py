@@ -4,8 +4,8 @@ import os
 import platform
 import time
 
-from git import Repo
 import psutil
+from git import Repo
 
 from .sets import Settings
 from .util import to_human  # TODO: move to server side
@@ -170,6 +170,24 @@ class System:
         return d
 
     def monitor(self):
+        p = self.settings.x_stats_reporting_prefix
+        d = {
+            **{f"{p}cpu/pct/{i}": v for i, v in enumerate(psutil.cpu_percent(percpu=True))},
+            **{f"{p}mem/{k}": v for k, v in psutil.virtual_memory()._asdict().items() if k in ("active", "used")},
+            **{f"{p}disk/{k}": v for k, v in psutil.disk_usage(self.settings.work_dir())._asdict().items()},
+            **{f"{p}net/{k}": v for k, v in psutil.net_io_counters()._asdict().items() if k.startswith("bytes")},
+        }
+        if self.gpu:
+            if self.gpu.get("nvidia"):
+                import pynvml
+                for h in self.gpu["nvidia"]["handles"]:
+                    dev = str(pynvml.nvmlDeviceGetName(h))[2:-1].lower().replace(" ", "_")
+                    d[f"{p}gpu/nvda/{dev}/pct"] = pynvml.nvmlDeviceGetUtilizationRates(h).gpu
+                    d[f"{p}gpu/nvda/{dev}/mem/pct"] = pynvml.nvmlDeviceGetUtilizationRates(h).memory
+                    d[f"{p}gpu/nvda/{dev}/power"] = pynvml.nvmlDeviceGetPowerUsage(h)
+        return d
+
+    def monitor_human(self):
         d = {
             "cpu": {
                 "percent": psutil.cpu_percent(percpu=True),

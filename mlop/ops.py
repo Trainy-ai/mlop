@@ -1,10 +1,10 @@
-from collections.abc import Mapping
 import atexit
 import logging
+import multiprocessing
 import queue
 import threading
-import multiprocessing
 import time
+from collections.abc import Mapping
 
 from .file import File, Image
 from .iface import ServerInterface
@@ -30,7 +30,7 @@ class OpsMonitor:
     def stop(self) -> None:
         self._stop_event.set()
         if self._thread is not None:
-            self._thread.join()  # timeout=self.op.settings.heartbeat_seconds
+            self._thread.join()  # timeout=self.op.settings.x_stats_sampling_interval
             self._thread = None
 
 
