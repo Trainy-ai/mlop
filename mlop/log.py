@@ -1,41 +1,12 @@
 import builtins
 import logging
-import os
 import sys
 import time
 
 from .iface import make_compat_message_v1
-from .sets import get_console
+from .util import ANSI
 
 builtins_input = builtins.input
-
-
-class ANSI:
-    base = "\033["  # "\x1b["
-    reset = f"{base}0m"
-    bold = f"{base}1m"
-    faint = f"{base}2m"
-    italic = f"{base}3m"
-    underline = f"{base}4m"
-    slow_blink = f"{base}5m"
-    rapid_blink = f"{base}6m"
-
-    black = f"{base}30m"
-    red = f"{base}31m"
-    green = f"{base}32m"
-    yellow = f"{base}33m"
-    blue = f"{base}34m"
-    purple = f"{base}35m"
-    cyan = f"{base}36m"
-    white = f"{base}37m"
-
-    if not __import__("sys").stdout.isatty() and get_console() == "python":
-        for _ in dir():
-            if isinstance(_, str) and _[0] != "_":
-                locals()[_] = ""
-    else:
-        if __import__("platform").system() == "Windows":
-            os.system("")
 
 
 class ColorFormatter(logging.Formatter):
@@ -62,7 +33,9 @@ class ColorFormatter(logging.Formatter):
 
 
 class ConsoleHandler:
-    def __init__(self, logger, queue, level=logging.INFO, stream=sys.stdout, type="stdout"):
+    def __init__(
+        self, logger, queue, level=logging.INFO, stream=sys.stdout, type="stdout"
+    ):
         self.logger = logger
         self.queue = queue
         self.level = level
@@ -74,7 +47,9 @@ class ConsoleHandler:
         for line in buf.rstrip().splitlines():
             self.count += 1
             m = line.rstrip()
-            self.queue.put(make_compat_message_v1(self.level, m, int(time.time()), self.count))
+            self.queue.put(
+                make_compat_message_v1(self.level, m, int(time.time()), self.count)
+            )
             self.logger.log(self.level, m)
         self.stream.write(buf)
         self.stream.flush()

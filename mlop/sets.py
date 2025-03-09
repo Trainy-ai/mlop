@@ -46,12 +46,14 @@ class Settings:
     x_sys_label: str = "_/sys/"
     x_meta_label: str = "_/meta/"
 
-    url: str = "http://localhost:3000"
-    url_data: str = f"{url}/ingest/metrics"
-    url_file: str = f"{url}/files"
-    url_message: str = f"{url}/ingest/logs"
-    url_status: str = "http://localhost:5000/api/create-run/"
-    url_view: str = f"{url}/view"
+    url: str = "https://demo.mlop.ai"
+    url_auth: str = f"{url}/api-keys"
+    url_status: str = f"{url}/api/create-run"
+    _url: str = "https://server.mlop.ai"
+    url_data: str = f"{_url}/ingest/metrics"
+    url_file: str = f"{_url}/files"
+    url_message: str = f"{_url}/ingest/logs"
+    url_view: str = f"{_url}/view"
 
     def update(self, settings) -> None:
         if isinstance(settings, Settings):

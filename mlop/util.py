@@ -6,8 +6,38 @@ import string
 import time
 from typing import Sequence, Union
 
+from .sets import get_console
+
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Util"
+
+
+class ANSI:
+    base = "\033["  # "\x1b["
+    reset = f"{base}0m"
+    bold = f"{base}1m"
+    faint = f"{base}2m"
+    italic = f"{base}3m"
+    underline = f"{base}4m"
+    slow_blink = f"{base}5m"
+    rapid_blink = f"{base}6m"
+
+    black = f"{base}30m"
+    red = f"{base}31m"
+    green = f"{base}32m"
+    yellow = f"{base}33m"
+    blue = f"{base}34m"
+    purple = f"{base}35m"
+    cyan = f"{base}36m"
+    white = f"{base}37m"
+
+    if not __import__("sys").stdout.isatty() and get_console() == "python":
+        for _ in dir():
+            if isinstance(_, str) and _[0] != "_":
+                locals()[_] = ""
+    else:
+        if __import__("platform").system() == "Windows":
+            os.system("")
 
 
 def gen_id(length=8) -> str:

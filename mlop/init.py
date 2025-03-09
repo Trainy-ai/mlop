@@ -94,7 +94,7 @@ def init(
     name: str | None = None,
     id: str | None = None,
     config: dict | str | None = None,
-    settings: Settings | dict[str, any] | None = None,
+    settings: Settings | dict[str, any] | None = {},
 ) -> Ops:
     if not isinstance(settings, Settings):  # isinstance(settings, dict)
         default = Settings()

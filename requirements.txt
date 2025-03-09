@@ -1,4 +1,5 @@
 GitPython
 httpx[http2]
+keyring
 pillow
 psutil

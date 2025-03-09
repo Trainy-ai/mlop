@@ -1,12 +1,16 @@
+import getpass
 import json
 import logging
 import queue
 import threading
 import time
+import webbrowser
 
 import httpx
+import keyring
 
 from .sets import Settings
+from .util import ANSI
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Interface"
@@ -15,6 +19,7 @@ tag = "Interface"
 class ServerInterface:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.settings.auth = keyring.get_password(f"{self.settings.tag}", f"{self.settings.tag}")
 
         self.url_view = f"{self.settings.url_view}/{self.settings.user}/{self.settings.project}/{self.settings._op_id}"
         self.headers = {
@@ -61,6 +66,7 @@ class ServerInterface:
         self._thread_message = None
 
     def start(self) -> None:
+        self.auth()
         if self._thread_data is None:
             self._thread_data = threading.Thread(
                 target=self._worker_publish,
@@ -89,6 +95,8 @@ class ServerInterface:
                 daemon=True,
             )
             self._thread_message.start()
+    
+    def auth(self) -> None:
         r = self._post_v1(
             self.settings.url_status,
             self.headers,
@@ -96,9 +104,22 @@ class ServerInterface:
             client=self.client,
         )
         try:
-            logger.info(f"{tag}: started: {r.json()}") # TODO: send a proper response
+            logger.info(f"{tag}: started run (ID: {r.json()['runId']})") # TODO: send a proper response
         except Exception as e:
-            logger.critical("%s: failed to start: %s", tag, e)
+            # logger.critical("%s: authentication failed: %s", tag, e)
+            hint1 = "Please copy the API key provided in the web portal and paste it below"
+            hint2 = f"You can alternatively manually open {ANSI.underline}{self.settings.url_auth}{ANSI.reset}"
+            hint3 = "You may exit at any time by pressing CTRL+C / ⌃+C"
+            logger.info(f"{tag}: initiating authentication\n\n{ANSI.yellow} - {hint1}\n\n - {hint2}\n\n - {hint3}\n")
+            webbrowser.open(url=self.settings.url_auth)
+            self.settings.auth = getpass.getpass(prompt=f"{ANSI.green}API Key: {ANSI.reset}")
+            for h in (self.headers, self.headers_data):
+                h["Authorization"] = f"Bearer {self.settings.auth}"
+            self.auth()
+        try:
+            keyring.set_password(f"{self.settings.tag}", f"{self.settings.tag}", f"{self.settings.auth}")
+        except Exception as e:
+            logger.critical("%s: failed to save api key to system keyring service: %s", tag, e)
 
     def publish(
         self,
