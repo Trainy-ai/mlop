@@ -21,7 +21,7 @@ class ServerInterface:
         self.settings = settings
         self.settings.auth = keyring.get_password(f"{self.settings.tag}", f"{self.settings.tag}")
 
-        self.url_view = f"{self.settings.url_view}/{self.settings.user}/{self.settings.project}/{self.settings._op_id}"
+        # self.url_view = f"{self.settings.url_view}/{self.settings.user}/{self.settings.project}/{self.settings._op_id}"
         self.headers = {
             "Authorization": f"Bearer {self.settings.auth}",
             "Content-Type": "application/json",
@@ -105,6 +105,8 @@ class ServerInterface:
         )
         try:
             logger.info(f"{tag}: started run (ID: {r.json()['runId']})") # TODO: send a proper response
+            self.settings.url_view = r.json()["url"]
+            logger.info(f"{tag}: find live updates at {ANSI.underline}{self.settings.url_view}{ANSI.reset}")
         except Exception as e:
             # logger.critical("%s: authentication failed: %s", tag, e)
             hint1 = "Please copy the API key provided in the web portal and paste it below"
@@ -141,6 +143,7 @@ class ServerInterface:
             self._thread_file.start()
 
     def stop(self) -> None:
+        logger.info(f"{tag}: find uploaded data at {ANSI.underline}{self.settings.url_view}{ANSI.reset}")
         self._stop_event.set()
         for t in [
             self._thread_data,
@@ -151,7 +154,14 @@ class ServerInterface:
             if t is not None:
                 t.join(timeout=self.settings.x_internal_check_process)
                 t = None
-        logger.info(f"{tag}: find uploaded data at {self.url_view}")
+    
+    def _update_meta(self, meta):
+        r = self._post_v1(
+            self.settings.url_meta,
+            self.headers,
+            make_compat_meta_v1(meta, self.settings),
+            client=self.client,
+        )
 
     def _worker_publish(self, e, h, q, b, stop, name=None):
         while not q.empty() or not stop():
@@ -282,6 +292,28 @@ class ServerInterface:
             return None
 
 
+def make_compat_status_v1(data, settings):
+    return json.dumps(
+        {
+            "runId": settings._op_id,
+            "runName": settings._op_name,
+            "projectName": settings.project,
+            "metadata": json.dumps(data),
+        }
+    ).encode()
+
+
+def make_compat_meta_v1(meta, settings):
+    return json.dumps(
+        {
+            "runId": settings._op_id,
+            # "runName": settings._op_name,
+            # "projectName": settings.project,
+            "logName": [meta], # TODO: aggregate
+        }
+    ).encode()
+
+
 def make_compat_data_v1(data, timestamp, step):
     line = [
         json.dumps(
@@ -331,13 +363,3 @@ def make_compat_message_v1(level, message, timestamp, step):
     ]
     return ("\n".join(line) + "\n").encode("utf-8")
 
-
-def make_compat_status_v1(data, settings):
-    return json.dumps(
-        {
-            "runId": settings._op_id,
-            "runName": settings._op_name,
-            "projectName": settings.project,
-            "metadata": json.dumps(data),
-        }
-    ).encode()

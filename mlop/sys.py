@@ -121,7 +121,7 @@ class System:
                 url = None
             d = {
                 "url": url,
-                "name": repo.config_reader().get_value("user", "name"),
+                # "name": repo.config_reader().get_value("user", "name"),
                 "email": repo.config_reader().get_value("user", "email"),
                 "root": repo.git.rev_parse("--show-toplevel"),
                 "dirty": repo.is_dirty(),

@@ -130,7 +130,8 @@ class Ops:
         for k, v in data.items():
             if k not in self.settings.meta:
                 self.settings.meta.append(k)
-                d[f"{self.settings.x_meta_label}{k}"] = 0
+                # d[f"{self.settings.x_meta_label}{k}"] = 0
+                self._iface._update_meta(k) if self._iface else None
                 logger.debug(f"{TAG}: added {k} at step {self._step}")
             if isinstance(v, list):
                 for e in v:

@@ -48,7 +48,9 @@ class Settings:
 
     url: str = "https://demo.mlop.ai"
     url_auth: str = f"{url}/api-keys"
-    url_status: str = f"{url}/api/create-run"
+    _url_api: str = "https://api.mlop.ai"
+    url_status: str = f"{_url_api}/api/create-run"
+    url_meta: str = f"{_url_api}/api/add-logname"
     _url: str = "https://server.mlop.ai"
     url_data: str = f"{_url}/ingest/metrics"
     url_file: str = f"{_url}/files"
