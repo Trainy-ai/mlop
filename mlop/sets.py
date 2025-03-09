@@ -35,7 +35,7 @@ class Settings:
 
     x_log_level: int = 2**4  # logging.NOTSET
     x_internal_check_process: int = None  # 1
-    x_file_stream_retry_max: int = 2
+    x_file_stream_retry_max: int = 4
     x_file_stream_retry_wait_min_seconds: float = 2 ** (-1)
     x_file_stream_retry_wait_max_seconds: float = 2
     x_file_stream_timeout_seconds: int = 2**2

@@ -40,9 +40,14 @@ class ANSI:
             os.system("")
 
 
+def print_url(url):
+    return f"{ANSI.underline}{url}{ANSI.reset}"
+
+
 def gen_id(length=8) -> str:
     base = string.ascii_lowercase + string.ascii_uppercase + string.digits
-    return ''.join(random.choice(base) for _ in range(length))
+    return "".join(random.choice(base) for _ in range(length))
+
 
 def gen_ulid(base="0123456789ABCDEFGHJKMNPQRSTVWXYZ") -> str:  # py-ulid
     ulid = (int(time.time() * 1000) << 80) | random.getrandbits(80)
@@ -52,6 +57,7 @@ def gen_ulid(base="0123456789ABCDEFGHJKMNPQRSTVWXYZ") -> str:  # py-ulid
         ulid, remainder = divmod(ulid, 32)
         encoded.append(base[remainder])
     return "".join(encoded[::-1]).rjust(26, base[0])
+
 
 def to_dict(obj):
     attrs = {}

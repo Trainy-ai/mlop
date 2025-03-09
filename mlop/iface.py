@@ -10,7 +10,7 @@ import httpx
 import keyring
 
 from .sets import Settings
-from .util import ANSI
+from .util import ANSI, print_url
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Interface"
@@ -106,11 +106,11 @@ class ServerInterface:
         try:
             logger.info(f"{tag}: started run (ID: {r.json()['runId']})") # TODO: send a proper response
             self.settings.url_view = r.json()["url"]
-            logger.info(f"{tag}: find live updates at {ANSI.underline}{self.settings.url_view}{ANSI.reset}")
+            logger.info(f"{tag}: find live updates at {print_url(self.settings.url_view)}")
         except Exception as e:
             # logger.critical("%s: authentication failed: %s", tag, e)
             hint1 = "Please copy the API key provided in the web portal and paste it below"
-            hint2 = f"You can alternatively manually open {ANSI.underline}{self.settings.url_auth}{ANSI.reset}"
+            hint2 = f"You can alternatively manually open {print_url(self.settings.url_auth)}"
             hint3 = "You may exit at any time by pressing CTRL+C / ⌃+C"
             logger.info(f"{tag}: initiating authentication\n\n{ANSI.yellow} - {hint1}\n\n - {hint2}\n\n - {hint3}\n")
             webbrowser.open(url=self.settings.url_auth)
@@ -143,7 +143,7 @@ class ServerInterface:
             self._thread_file.start()
 
     def stop(self) -> None:
-        logger.info(f"{tag}: find uploaded data at {ANSI.underline}{self.settings.url_view}{ANSI.reset}")
+        logger.info(f"{tag}: find uploaded data at {print_url(self.settings.url_view)}")
         self._stop_event.set()
         for t in [
             self._thread_data,
@@ -309,7 +309,7 @@ def make_compat_meta_v1(meta, settings):
             "runId": settings._op_id,
             # "runName": settings._op_name,
             # "projectName": settings.project,
-            "logName": [meta], # TODO: aggregate
+            "logName": meta # TODO: better aggregate
         }
     ).encode()
 

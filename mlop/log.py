@@ -28,7 +28,7 @@ class ColorFormatter(logging.Formatter):
         }
         color = colors.get(record.levelname, "")
         style = styles.get(record.levelname, "")
-        # record.msg = f"{color}{record.msg}{ANSI.RESET}"
+        # record.msg = f"{color}{record.msg}{ANSI.reset}"
         return f"{prefix}{color}{style}{super().format(record)}{ANSI.reset}"
 
 

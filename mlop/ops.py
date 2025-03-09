@@ -126,12 +126,12 @@ class Ops:
             self._step += 1
 
         # data = data.copy()  # TODO: check mutability
-        d, f = {}, {}
+        d, f, m = {}, {}, []
         for k, v in data.items():
             if k not in self.settings.meta:
+                m.append(k)
                 self.settings.meta.append(k)
                 # d[f"{self.settings.x_meta_label}{k}"] = 0
-                self._iface._update_meta(k) if self._iface else None
                 logger.debug(f"{TAG}: added {k} at step {self._step}")
             if isinstance(v, list):
                 for e in v:
@@ -146,6 +146,7 @@ class Ops:
         self._iface.publish(
             data=d, file=f, timestamp=t, step=self._step
         ) if self._iface else None
+        self._iface._update_meta(m) if m and self._iface else None
 
     def _op(self, d, f, k, v) -> None:
         if isinstance(v, File):
