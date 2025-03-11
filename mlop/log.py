@@ -84,9 +84,17 @@ def input_hook(prompt="", logger=None):
 
 
 def setup_logger(settings) -> None:
+    if settings._nb_colab():
+        rlogger = logging.getLogger()
+        for h in rlogger.handlers[:]: # iter root handlers
+            rlogger.removeHandler(h)
+
     global logger
-    if len(logger.handlers) != 0:
+    if len(logger.handlers) >= 2: # full logger
         return
+    elif len(logger.handlers) > 0: # partial setup
+        for h in logger.handlers[:]:
+            logger.removeHandler(h) # reset
     logger.setLevel(settings.x_log_level)
 
     stream_handler = logging.StreamHandler()
@@ -98,23 +106,29 @@ def setup_logger(settings) -> None:
 
 
 def setup_logger_file(settings) -> None:
-    file_handler = logging.FileHandler(f"{settings.work_dir()}/{settings.tag}.log")
-    file_formatter = logging.Formatter(
-        "%(asctime)s %(levelname)-8s %(threadName)-10s:%(process)d "
-        "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-    )
-    file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
+    try:
+        file_handler = logging.FileHandler(f"{settings.work_dir()}/{settings.tag}.log")
+        file_formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-8s %(threadName)-10s:%(process)d "
+            "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+    except TypeError:
+        pass # TODO: better handle this
 
     console = logging.getLogger("console")
     console.setLevel(logging.DEBUG)
-    file_handler = logging.FileHandler(f"{settings.work_dir()}/sys.log")
-    file_formatter = logging.Formatter(
-        "%(asctime)s.%(msecs)03d | %(levelname)-7s | %(message)s",
-        datefmt="%H:%M:%S",
-    )
-    file_handler.setFormatter(file_formatter)
-    console.addHandler(file_handler)  # TODO: fix slow file writes
+    try:
+        file_handler = logging.FileHandler(f"{settings.work_dir()}/sys.log")
+        file_formatter = logging.Formatter(
+            "%(asctime)s.%(msecs)03d | %(levelname)-7s | %(message)s",
+            datefmt="%H:%M:%S",
+        )
+        file_handler.setFormatter(file_formatter)
+        console.addHandler(file_handler)  # TODO: fix slow file writes
+    except TypeError:
+        pass
     sys.stdout = ConsoleHandler(
         console, settings.message, logging.INFO, sys.stdout, "stdout"
     )

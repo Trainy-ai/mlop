@@ -15,7 +15,7 @@ class Settings:
     project: str = "default"
     mode: str = "perf"  # noop | debug | perf
     system: dict[str, any] = {}
-    meta: list = []
+    meta: list = None
     message: queue.Queue = queue.Queue()
     disable_store: bool = True  # TODO: make false
     disable_iface: bool = False

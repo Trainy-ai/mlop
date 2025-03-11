@@ -16,12 +16,13 @@ tag = "Auth"
 
 
 def login(settings=Settings(), retry=False):
-    if settings._nb_colab() is True:  # TODO: find more secure implementations for colab
-        keyring.set_keyring(PlaintextKeyring())
-    settings.disable_logger = True
     setup_logger(settings)
-    if settings.auth is None:
+    try:
         auth = keyring.get_password(f"{settings.tag}", f"{settings.tag}")
+    except keyring.errors.NoKeyringError:  # fallback
+        keyring.set_keyring(PlaintextKeyring())
+        auth = keyring.get_password(f"{settings.tag}", f"{settings.tag}")
+    if settings.auth is None:
         if auth == "":
             keyring.delete_password(f"{settings.tag}", f"{settings.tag}")
         elif auth is not None:
@@ -68,11 +69,11 @@ def login(settings=Settings(), retry=False):
 
 
 def logout(settings=Settings()):
-    if settings._nb_colab() is True:
-        keyring.set_keyring(PlaintextKeyring())
-    settings.disable_logger = True
     setup_logger(settings)
     try:
+        keyring.delete_password(f"{settings.tag}", f"{settings.tag}")
+    except keyring.errors.NoKeyringError:
+        keyring.set_keyring(PlaintextKeyring())
         keyring.delete_password(f"{settings.tag}", f"{settings.tag}")
     except Exception as e:
         logger.warning(

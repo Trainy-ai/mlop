@@ -30,6 +30,7 @@ class OpsInit:
         # TODO: handle login and settings validation here
         setup_settings.update(settings)
         self.settings = setup_settings
+        self.settings.meta = [] # TODO: find a better way to de-reference meta
 
         if self.settings.mode == "noop":
             self.settings.disable_iface = True
