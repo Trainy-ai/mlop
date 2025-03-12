@@ -83,7 +83,7 @@ def input_hook(prompt="", logger=None):
     return content
 
 
-def setup_logger(settings) -> None:
+def setup_logger(settings, temp=False) -> None:
     if settings._nb_colab():
         rlogger = logging.getLogger()
         for h in rlogger.handlers[:]: # iter root handlers
@@ -101,7 +101,7 @@ def setup_logger(settings) -> None:
     stream_handler.setFormatter(stream_formatter(settings))
     logger.addHandler(stream_handler)
 
-    if not settings.disable_logger:
+    if not temp and not settings.disable_logger:
         setup_logger_file(settings)
 
 
@@ -119,6 +119,10 @@ def setup_logger_file(settings) -> None:
 
     console = logging.getLogger("console")
     console.setLevel(logging.DEBUG)
+    if settings.mode == "debug":
+        builtins.input = lambda prompt="": input_hook(prompt, logger=console)
+    if len(console.handlers) > 0: # full logger
+        return
     try:
         file_handler = logging.FileHandler(f"{settings.work_dir()}/sys.log")
         file_formatter = logging.Formatter(
@@ -135,6 +139,3 @@ def setup_logger_file(settings) -> None:
     sys.stderr = ConsoleHandler(
         console, settings.message, logging.ERROR, sys.stderr, "stderr"
     )
-
-    if settings.mode == "debug":
-        builtins.input = lambda prompt="": input_hook(prompt, logger=console)

@@ -15,8 +15,8 @@ logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Auth"
 
 
-def login(settings=Settings(), retry=False):
-    setup_logger(settings)
+def login(settings=Settings(), temp=True, retry=False):
+    setup_logger(settings, temp=temp)  # temporary call brings up a stream handler only
     try:
         auth = keyring.get_password(f"{settings.tag}", f"{settings.tag}")
     except keyring.errors.NoKeyringError:  # fallback
@@ -31,8 +31,7 @@ def login(settings=Settings(), retry=False):
         logger.critical(
             "%s: authentication failed: the provided token cannot be empty", tag
         )
-        sys.exit()
-        # os._exit(1)
+        sys.exit()  # os._exit(1)
     client = httpx.Client(proxy=settings.http_proxy or settings.https_proxy or None)
     r = client.post(
         url=settings.url_login,
@@ -65,11 +64,11 @@ def login(settings=Settings(), retry=False):
             logger.critical(
                 "%s: failed to save key to system keyring service: %s", tag, e
             )
-        login(retry=True)
+        login(temp=temp, retry=True)
 
 
-def logout(settings=Settings()):
-    setup_logger(settings)
+def logout(settings=Settings(), temp=True):
+    setup_logger(settings, temp=temp)
     try:
         keyring.delete_password(f"{settings.tag}", f"{settings.tag}")
     except keyring.errors.NoKeyringError:
