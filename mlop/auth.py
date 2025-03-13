@@ -15,8 +15,8 @@ logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Auth"
 
 
-def login(settings=Settings(), temp=True, retry=False):
-    setup_logger(settings, temp=temp)  # temporary call brings up a stream handler only
+def login(settings=Settings(), op=False, retry=False):
+    setup_logger(settings, op=op)  # op: differentiate if calling within a run
     try:
         auth = keyring.get_password(f"{settings.tag}", f"{settings.tag}")
     except keyring.errors.NoKeyringError:  # fallback
@@ -64,11 +64,11 @@ def login(settings=Settings(), temp=True, retry=False):
             logger.critical(
                 "%s: failed to save key to system keyring service: %s", tag, e
             )
-        login(temp=temp, retry=True)
+        login(op=op, retry=True)
 
 
-def logout(settings=Settings(), temp=True):
-    setup_logger(settings, temp=temp)
+def logout(settings=Settings(), op=False):
+    setup_logger(settings, op=op)
     try:
         keyring.delete_password(f"{settings.tag}", f"{settings.tag}")
     except keyring.errors.NoKeyringError:

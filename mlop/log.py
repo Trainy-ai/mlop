@@ -83,7 +83,7 @@ def input_hook(prompt="", logger=None):
     return content
 
 
-def setup_logger(settings, temp=False) -> None:
+def setup_logger(settings, op=True) -> None:
     if settings._nb_colab():
         rlogger = logging.getLogger()
         for h in rlogger.handlers[:]: # iter root handlers
@@ -101,7 +101,7 @@ def setup_logger(settings, temp=False) -> None:
     stream_handler.setFormatter(stream_formatter(settings))
     logger.addHandler(stream_handler)
 
-    if not temp and not settings.disable_logger:
+    if op and not settings.disable_logger:
         setup_logger_file(settings)
 
 
