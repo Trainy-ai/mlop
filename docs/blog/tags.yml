@@ -2,3 +2,8 @@ tutorial:
   label: Tutorial
   permalink: /tutorial
   description: Learn how to use this project
+
+release:
+  label: Release
+  permalink: /release
+  description: Learn the latest updates
