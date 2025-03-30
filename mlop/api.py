@@ -9,12 +9,6 @@ STATUS = {
     signal.SIGINT.value: "TERMINATED",  # "INTERRUPTED",
 }
 
-DTYPE = {
-    "data": "METRIC",
-    "file": "FILE",
-}
-
-
 def make_compat_start_v1(config, settings, info):
     return json.dumps(
         {
@@ -43,7 +37,7 @@ def make_compat_meta_v1(meta, dtype, settings):
             "runId": settings._op_id,
             # "runName": settings._op_name,
             # "projectName": settings.project,
-            "logType": DTYPE[dtype],
+            "logType": dtype.upper() if dtype != "data" else "METRIC",
             "logName": meta,  # TODO: better aggregate
         }
     ).encode()

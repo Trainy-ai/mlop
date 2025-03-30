@@ -180,7 +180,7 @@ class Ops:
             self._step += 1
 
         # data = data.copy()  # TODO: check mutability
-        d, f, dm, fm = {}, {}, [], []
+        d, f, dm, fm = {}, {}, [], {}
         for k, v in data.items():
             if isinstance(v, list):
                 dm, fm = self._m(dm, fm, k, v[0])
@@ -197,12 +197,16 @@ class Ops:
         self._iface.publish(
             data=d, file=f, timestamp=t, step=self._step
         ) if self._iface else None
-        self._iface._update_meta(data=dm, file=fm) if (dm or fm) and self._iface else None
-    
+        self._iface._update_meta(data=dm, file=fm) if (
+            dm or fm
+        ) and self._iface else None
+
     def _m(self, dm, fm, k, v) -> None:
         if k not in self.settings.meta:
             if isinstance(v, File):
-                fm.append(k)
+                if v.__class__.__name__ not in fm:
+                    fm[v.__class__.__name__] = []
+                fm[v.__class__.__name__].append(k)
             elif isinstance(v, (int, float)):
                 dm.append(k)
             self.settings.meta.append(k)

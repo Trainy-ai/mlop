@@ -149,18 +149,21 @@ class ServerInterface:
         )
 
     def _update_meta(self, data=None, file=None):
-        r = self._post_v1(
-            self.settings.url_meta,
-            self.headers,
-            make_compat_meta_v1(data, "data", self.settings),
-            client=self.client,
-        ) if data else None
-        r = self._post_v1(
-            self.settings.url_meta,
-            self.headers,
-            make_compat_meta_v1(file, "file", self.settings),
-            client=self.client,
-        ) if file else None
+        if data:
+            r = self._post_v1(
+                self.settings.url_meta,
+                self.headers,
+                make_compat_meta_v1(data, "data", self.settings),
+                client=self.client,
+            )
+        if file: 
+            for k, v in file.items():
+                r = self._post_v1(
+                    self.settings.url_meta,
+                    self.headers,
+                    make_compat_meta_v1(v, k, self.settings),
+                    client=self.client,
+                )
 
     def _worker_publish(self, e, h, q, b, stop, name=None):
         while not (q.empty() and stop()):  # terminates only when both conditions met
