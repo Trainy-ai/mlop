@@ -2,38 +2,141 @@ import logging
 
 import torch
 
+import mlop
+
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Torch"
 
 
 def watch(
     module: torch.nn.Module,
-    log: str | None = "gradients",
-    log_freq: int | None = 1000,
+    # log: str | None = "gradients",
+    disable_grad: bool = False,
+    disable_param: bool = False,
+    freq: int | None = 1000,  # log_freq
 ):
-    if not hasattr(module, "_watched"):
-        module._watched = []
+    if mlop.ops is None or len(mlop.ops) == 0:
+        logger.critical(f"{tag}: no runs to attach, please call mlop.init() first")
+        return
+    else:
+        log, hooks = mlop.log, mlop._hooks
 
-    c = [0, log_freq]
+    if not disable_grad:
+        for name, param in module.named_parameters():
+            if param.requires_grad and check_param(param, name):
+                hooks.append(param.register_hook(_backward("_grad", name, log, freq)))
 
-    for name, param in module.named_parameters():
-        if param.requires_grad:
-            module._watched.append(log)
+    if not disable_param:
+        hooks.append(module.register_forward_hook(_forward("_param", log, freq)))
 
-        if not isinstance(param, torch.autograd.Variable):
-            logger.critical(
-                f"{tag}: {name} is of type {type(param).__module__}.{type(param).__name__} and not a torch.Variable"
-            )
-            continue
+    return hooks
 
-        # TODO: keep track of hook handles
-        def _callback(grad, c=[0, log_freq]):
-            c[0] += 1
-            if c[0] < c[1]:
-                return
-            c[0] = 0
-            tensor = grad.data
-            print(tensor)  # op.log on the tensor (log_tensor_stats)
 
-        handle = param.register_hook(lambda grad: _callback(grad, c))
-        return handle
+def check_param(param, name):
+    if isinstance(param, torch.autograd.Variable):
+        return True
+    else:
+        logger.error(
+            f"{tag}: {name} is of type {type(param).__module__}.{type(param).__name__} and not a torch.Variable"
+        )
+        return False
+
+
+def _backward(prefix, name, log, freq):
+    c = [0]
+
+    def f(grad):
+        c[0] += 1
+        if c[0] < freq:
+            return
+        c[0] = 0
+        hist = make_compat_histogram_torch(grad.data)
+        if hist is not None:
+            log({f"{prefix}/{name}": hist})
+
+    return f
+
+
+def _forward(prefix, log, freq):
+    c = [0]
+
+    def f(module, input, output):
+        c[0] += 1
+        if c[0] < freq:
+            return
+        c[0] = 0
+
+        for name, param in module.named_parameters():
+            if check_param(param, name):
+                hist = make_compat_histogram_torch(param.data)
+                if hist is not None:
+                    log({f"{prefix}/{name}": hist})
+                else:
+                    logger.error(f"{tag}: {name} does not contain a valid tensor")
+
+    return f
+
+
+def make_compat_histogram_torch(tensor, bins=64):
+    if isinstance(tensor, (tuple, list)):
+        tensor = torch.cat([t.detach().clone().reshape(-1) for t in tensor])
+    tensor = tensor.detach().clone()
+
+    # handle sparse tensor zeros
+    zeros = None
+    if tensor.is_sparse:
+        tensor = tensor.cpu().coalesce()
+        values = tensor._values()
+        zeros = tensor.numel() - values.numel()
+        tensor = values
+
+    flat = tensor.reshape(-1)
+    if flat.is_cuda:
+        try:
+            flat.histc(bins=64)  # check for histc support
+            if not isinstance(flat, (torch.cuda.FloatTensor, torch.cuda.DoubleTensor)):
+                flat = flat.type(torch.cuda.FloatTensor)
+        except RuntimeError:
+            flat = flat.cpu()
+    if not flat.is_cuda and not isinstance(
+        flat, (torch.FloatTensor, torch.DoubleTensor)
+    ):
+        flat = flat.type(torch.FloatTensor)
+
+    flat = make_compat_tensor(flat)
+    if flat is None:
+        return None
+
+    # find histogram bounds
+    tmin, tmax = flat.min().item(), flat.max().item()
+    if zeros:
+        tmin = min(0, tmin)
+        tmax = max(0, tmax)
+    if tmin > tmax:
+        tmin, tmax = tmax, tmin
+
+    if tmin == tmax:  # use single bin if all values are the same
+        tensor = torch.Tensor([flat.numel()])
+        bins = torch.Tensor([tmin, tmax])
+    else:
+        tensor = flat.histc(bins=bins, min=tmin, max=tmax)
+        bins = torch.linspace(tmin, tmax, steps=bins + 1)
+
+    # add back zeros from sparse tensor
+    if zeros:
+        mask = (bins[:-1] <= 0) & (bins[1:] > 0)
+        if not mask.any():
+            mask = torch.zeros_like(bins[:-1], dtype=torch.bool)
+            mask[-1] = bins[-1] == 0
+        tensor[mask] += zeros
+
+    return mlop.Histogram(data=(tensor.tolist(), bins.tolist()), bins=None)
+
+
+def make_compat_tensor(tensor):
+    if tensor.shape == torch.Size([0]) or (~torch.isfinite(tensor)).all().item():
+        return None  # invalid if empty or all inf/nan
+    elif not torch.isfinite(tensor).all():
+        return tensor[torch.isfinite(tensor)]  # remove inf/nan
+    else:
+        return tensor

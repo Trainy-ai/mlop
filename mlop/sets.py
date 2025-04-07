@@ -11,10 +11,10 @@ class Settings:
     tag: str = f"{__name__.split('.')[0]}"
     dir: str = str(os.path.abspath(os.getcwd()))
 
-    auth: str = None
+    _auth: str = None
+    _sys: dict[str, any] = {}
     project: str = "default"
     mode: str = "perf"  # noop | debug | perf
-    system: dict[str, any] = {}
     meta: list = None
     message: queue.Queue = queue.Queue()
     disable_store: bool = True  # TODO: make false
@@ -57,6 +57,7 @@ class Settings:
     url_meta: str = f"{_url_api}/api/add-logname"
     _url: str = "https://server.mlop.ai"
     url_num: str = f"{_url}/ingest/metrics"
+    url_data: str = f"{_url}/ingest/data"
     url_file: str = f"{_url}/files"
     url_message: str = f"{_url}/ingest/logs"
     url_view: str = f"{_url}/view"
@@ -93,14 +94,14 @@ class Settings:
         )
 
 
-class OpsSetup:
+class OpSetup:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings
 
 
-def setup(settings: Settings | None = None) -> OpsSetup:
+def setup(settings: Settings | None = None) -> OpSetup:
     logger.debug(f"{tag}: loading settings")
-    return OpsSetup(settings=settings)
+    return OpSetup(settings=settings)
 
 
 def get_console() -> str:

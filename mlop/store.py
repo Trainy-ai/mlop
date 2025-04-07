@@ -53,8 +53,8 @@ class DataStore:
         """)
         self.conn.commit()
 
-    def insert(self, num=None, file=None, timestamp=None, step=None):
-        self._queue.put((num, file, timestamp, step))
+    def insert(self, num=None, data=None, file=None, timestamp=None, step=None):
+        self._queue.put((num, data, file, timestamp, step))
 
     def stop(self):
         while not self._queue.empty():
@@ -76,8 +76,8 @@ class DataStore:
                 and len(batch_num) < self.settings.store_max_size
                 and len(batch_file) < self.settings.store_max_size
             ):
-                try:
-                    n, f, t, s = self._queue.get(
+                try:  # TODO: add data support
+                    n, d, f, t, s = self._queue.get(
                         timeout=max(
                             0,
                             self.settings.store_aggregate_interval

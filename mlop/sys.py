@@ -72,7 +72,7 @@ class System:
         # NVIDIA
         n = run_cmd("nvidia-smi")
         if n:
-            logging.getLogger("console").debug(n)
+            logging.getLogger("console").error(n)
             try:
                 import pynvml
 

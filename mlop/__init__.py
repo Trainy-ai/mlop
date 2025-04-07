@@ -1,12 +1,19 @@
 from .auth import login, logout
 from .compat.torch import watch
+from .data import Data, Histogram
 from .file import Audio, File, Image
 from .init import init
 from .sets import Settings, setup
 from .sys import System
 
 # TODO: setup preinit
+
+ops = None
+_hooks = []
+
 __all__ = (
+    "Data",
+    "Histogram",
     "File",
     "Image",
     "Audio",

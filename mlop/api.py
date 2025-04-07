@@ -3,6 +3,9 @@ import logging
 import re
 import signal
 
+from .data import Histogram
+from .util import clean_dict
+
 STATUS = {
     -1: "RUNNING",
     0: "COMPLETED",
@@ -25,18 +28,20 @@ def make_compat_start_v1(config, settings, info):
             # "runId": settings._op_id,
             "runName": settings._op_name,
             "projectName": settings.project,
-            "metadata": json.dumps(config),
-            "systemMetadata": json.dumps(info),
+            "config": json.dumps(config) if config is not None else None,
+            "loggerSettings": json.dumps(clean_dict(settings.to_dict())),
+            "systemMetadata": json.dumps(info) if info is not None else None,
         }
     ).encode()
 
 
-def make_compat_stop_v1(settings):
+def make_compat_stop_v1(settings, trace=None):
     return json.dumps(
         {
             "runId": settings._op_id,
             "status": STATUS[settings._op_status],
-            "statusMetadata": json.dumps(settings.meta),
+            # "metadata": json.dumps(settings.meta),
+            "statusMetadata": json.dumps(trace) if trace is not None else None,
         }
     ).encode()
 
@@ -71,6 +76,37 @@ def make_compat_num_v1(data, timestamp, step):
         )
     ]
     return ("\n".join(line) + "\n").encode("utf-8")
+
+
+def make_compat_data_v1(data, timestamp, step):
+    lines = []
+    for k, dl in data.items():
+        for d in dl:
+            if isinstance(d, Histogram):
+                j = d.to_dict()
+                if j["shape"] == "uniform":
+                    bins = {
+                        "min": min(j["bins"]),
+                        "max": max(j["bins"]),
+                        "num": len(j["bins"]) - 1,
+                    }
+                    j["bins"] = bins
+                c = json.dumps(j)
+            else:
+                c = json.dumps(d.to_dict())
+
+            lines.append(
+                json.dumps(
+                    {
+                        "time": int(timestamp * 1000),  # convert to ms
+                        "data": c,
+                        "dataType": type(d).__name__.upper(),
+                        "logName": k,
+                        "step": step,
+                    }
+                )
+            )
+    return ("\n".join(lines) + "\n").encode("utf-8")
 
 
 def make_compat_file_v1(file, timestamp, step):

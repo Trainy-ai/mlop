@@ -121,6 +121,20 @@ def to_human(n):
     return "%sB" % n
 
 
+def clean_dict(d):
+    c = {}
+    for k, v in d.items():
+        if (
+            k.startswith("_")
+            or hasattr(v, "__dict__")
+            or hasattr(v, "__slots__")
+            or v is None
+        ):
+            continue
+        c[k] = v
+    return c
+
+
 def dict_to_json(data: dict[str, any]) -> dict:
     for key in list(data):  # avoid RuntimeError if dict size changes
         val = data[key]

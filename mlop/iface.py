@@ -7,6 +7,7 @@ import httpx
 import keyring
 
 from .api import (
+    make_compat_data_v1,
     make_compat_file_v1,
     make_compat_meta_v1,
     make_compat_num_v1,
@@ -25,13 +26,13 @@ class ServerInterface:
     def __init__(self, config: dict, settings: Settings) -> None:
         self.config = config
         self.settings = settings
-        self.settings.auth = keyring.get_password(
+        self.settings._auth = keyring.get_password(
             f"{self.settings.tag}", f"{self.settings.tag}"
         )
 
         # self.url_view = f"{self.settings.url_view}/{self.settings.user}/{self.settings.project}/{self.settings._op_id}"
         self.headers = {
-            "Authorization": f"Bearer {self.settings.auth}",
+            "Authorization": f"Bearer {self.settings._auth}",
             "Content-Type": "application/json",
             "User-Agent": f"{self.settings.tag}",
             "X-Run-Id": f"{self.settings._op_id}",
@@ -65,6 +66,8 @@ class ServerInterface:
 
         self._queue_num = queue.Queue()
         self._thread_num = None
+        self._queue_data = queue.Queue()
+        self._thread_data = None
         self._thread_file = None
         self._thread_storage = None
         self._thread_meta = None
@@ -82,11 +85,24 @@ class ServerInterface:
                     self.headers_num,
                     self._queue_num,
                     self._stop_event.is_set,
-                    "data",
+                    "num",
                 ),
                 daemon=True,
             )
             self._thread_num.start()
+        if self._thread_data is None:
+            self._thread_data = threading.Thread(
+                target=self._worker_publish,
+                args=(
+                    self.settings.url_data,
+                    self.headers,
+                    self._queue_data,
+                    self._stop_event.is_set,
+                    "data",
+                ),
+                daemon=True,
+            )
+            self._thread_data.start()
         if self._thread_message is None:
             self._thread_message = threading.Thread(
                 target=self._worker_publish,
@@ -104,13 +120,16 @@ class ServerInterface:
     def publish(
         self,
         num: dict[str, any] | None = None,
+        data: dict[str, any] | None = None,
         file: dict[str, any] | None = None,
         timestamp: int | None = None,
         step: int | None = None,
     ) -> None:
         if num:
-            self._queue_num.put(
-                make_compat_num_v1(num, timestamp, step), block=False
+            self._queue_num.put(make_compat_num_v1(num, timestamp, step), block=False)
+        if data:
+            self._queue_data.put(
+                make_compat_data_v1(data, timestamp, step), block=False
             )
         if file:
             self._thread_file = threading.Thread(
@@ -124,6 +143,7 @@ class ServerInterface:
         self._stop_event.set()
         for t in [
             self._thread_num,
+            self._thread_data,
             self._thread_file,
             self._thread_storage,
             self._thread_message,
@@ -135,17 +155,17 @@ class ServerInterface:
         self._update_status(self.settings)
         logger.info(f"{tag}: find uploaded data at {print_url(self.settings.url_view)}")
 
-    def _update_status(self, settings):
+    def _update_status(self, settings, trace=None):
         r = self._post_v1(
             self.settings.url_stop,
             self.headers,
-            make_compat_stop_v1(self.settings),
+            make_compat_stop_v1(self.settings, trace),
             client=self.client,
         )
 
-    def _update_meta(self, num=None, file=None):
+    def _update_meta(self, num=None, df=None):
         self._thread_meta = threading.Thread(
-            target=self._worker_meta, args=(num, file), daemon=True
+            target=self._worker_meta, args=(num, df), daemon=True
         )
         self._thread_meta.start()
 
@@ -198,7 +218,11 @@ class ServerInterface:
                         self._thread_storage.start()
         except Exception as e:
             logger.critical(
-                "%s: failed to send files to %s: %s (%s)", tag, self.settings.url_file, e, type(e).__name__
+                "%s: failed to send files to %s: %s (%s)",
+                tag,
+                self.settings.url_file,
+                e,
+                type(e).__name__,
             )
 
     def _worker_meta(self, num=None, file=None):
@@ -246,7 +270,13 @@ class ServerInterface:
                     f"{tag}: server responded error {r.status_code} during PUT to {url}: {r.text}"
                 )
         except Exception as e:
-            logger.error("%s: no response received during PUT to %s: %s: %s", tag, url, type(e).__name__, e)
+            logger.error(
+                "%s: no response received during PUT to %s: %s: %s",
+                tag,
+                url,
+                type(e).__name__,
+                e,
+            )
         retry += 1
         self._put_v1(
             url, headers, content, client=client, retry=retry
@@ -276,7 +306,13 @@ class ServerInterface:
                         f"{tag}: {name}: server responded error {r.status_code} for {len(b)} line(s) during POST: {r.text}"
                     )
         except Exception as e:
-            logger.error("%s: no response received during POST to %s: %s: %s", tag, url, type(e).__name__, e)
+            logger.error(
+                "%s: no response received during POST to %s: %s: %s",
+                tag,
+                url,
+                type(e).__name__,
+                e,
+            )
 
         retry += 1
         if retry < self.settings.x_file_stream_retry_max:
@@ -293,9 +329,7 @@ class ServerInterface:
             )
             for i in b:  # if isinstance(q, queue.Queue)
                 q.put(i, block=False)
-            return self._post_v1(
-                url, headers, q, client=client, retry=retry
-            )  # kwargs
+            return self._post_v1(url, headers, q, client=client, retry=retry)  # kwargs
         else:
             if name is not None:
                 logger.critical(

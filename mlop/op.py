@@ -6,10 +6,12 @@ import queue
 import signal
 import threading
 import time
+import traceback
 from collections.abc import Mapping
 
 from .api import make_compat_monitor_v1, make_compat_start_v1
 from .auth import login
+from .data import Data
 from .file import Audio, File, Image
 from .iface import ServerInterface
 from .log import setup_logger, teardown_logger
@@ -22,7 +24,7 @@ logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = "Logging"
 
 
-class OpsMonitor:
+class OpMonitor:
     def __init__(self, op) -> None:
         self.op = op
         self._stop_event = threading.Event()
@@ -57,7 +59,7 @@ class OpsMonitor:
     def _worker_monitor(self, stop):
         while not stop():
             self.op._iface.publish(
-                num=make_compat_monitor_v1(self.op.settings.system.monitor()),
+                num=make_compat_monitor_v1(self.op.settings._sys.monitor()),
                 file=None,
                 timestamp=time.time(),
                 step=self.op._step,
@@ -65,11 +67,11 @@ class OpsMonitor:
             time.sleep(self.op.settings.x_sys_sampling_interval)
 
 
-class Ops:
+class Op:
     def __init__(self, config, settings) -> None:
         self.config = config
         self.settings = settings
-        self._monitor = OpsMonitor(op=self)
+        self._monitor = OpMonitor(op=self)
 
         if self.settings.mode == "noop":
             self.settings.disable_iface = True
@@ -77,13 +79,13 @@ class Ops:
         else:
             # TODO: set up tmp dir
             login()
-            self.settings.system = System(self.settings)
+            self.settings._sys = System(self.settings)
             tmp_iface = ServerInterface(config=config, settings=settings)
             r = tmp_iface._post_v1(
                 self.settings.url_start,  # create-run
                 tmp_iface.headers,
                 make_compat_start_v1(
-                    self.config, self.settings, self.settings.system.get_info()
+                    self.config, self.settings, self.settings._sys.get_info()
                 ),
                 client=tmp_iface.client,
             )
@@ -98,7 +100,7 @@ class Ops:
                 console=logging.getLogger("console"),
             )  # global logger
             to_json(
-                [self.settings.system.get_info()], f"{self.settings.get_dir()}/sys.json"
+                [self.settings._sys.get_info()], f"{self.settings.get_dir()}/sys.json"
             )
 
         self._store = (
@@ -118,7 +120,7 @@ class Ops:
     def start(self) -> None:
         self._iface.start() if self._iface else None
         self._iface._update_meta(
-            list(make_compat_monitor_v1(self.settings.system.monitor()).keys())
+            list(make_compat_monitor_v1(self.settings._sys.monitor()).keys())
         ) if self._iface else None
         self._monitor.start()
         logger.debug(f"{tag}: started")
@@ -140,9 +142,25 @@ class Ops:
                 time.sleep(self.settings.x_internal_check_process)
             self._store.stop() if self._store else None
             self._iface.stop() if self._iface else None  # fixed order
-        except KeyboardInterrupt as e:
+        except (Exception, KeyboardInterrupt) as e:
             self.settings._op_status = signal.SIGINT.value
-            self._iface._update_status(self.settings) if self._iface else None
+            self._iface._update_status(
+                self.settings,
+                trace={
+                    "type": e.__class__.__name__,
+                    "message": str(e),
+                    "frames": [
+                        {
+                            "filename": frame.filename,
+                            "lineno": frame.lineno,
+                            "name": frame.name,
+                            "line": frame.line,
+                        } 
+                        for frame in traceback.extract_tb(e.__traceback__)
+                    ],
+                    "trace": traceback.format_exc(),
+                },
+            ) if self._iface else None
             logger.critical("%s: interrupted %s", tag, e)
         logger.debug(f"{tag}: finished")
         teardown_logger(logger, console=logging.getLogger("console"))
@@ -183,30 +201,28 @@ class Ops:
             self._step += 1
 
         # data = data.copy()  # TODO: check mutability
-        n, f, nm, fm = {}, {}, [], {}
+        n, d, f, nm, fm = {}, {}, {}, [], {}
         for k, v in data.items():
             if isinstance(v, list):
                 nm, fm = self._m(nm, fm, k, v[0])
                 for e in v:
-                    n, f = self._op(n, f, k, e)
+                    n, d, f = self._op(n, d, f, k, e)
             else:
                 nm, fm = self._m(nm, fm, k, v)
-                n, f = self._op(n, f, k, v)
+                n, d, f = self._op(n, d, f, k, v)
 
         # d = dict_to_json(d)  # TODO: add serialisation
         self._store.insert(
-            num=n, file=f, timestamp=t, step=self._step
+            num=n, data=d, file=f, timestamp=t, step=self._step
         ) if self._store else None
         self._iface.publish(
-            num=n, file=f, timestamp=t, step=self._step
+            num=n, data=d, file=f, timestamp=t, step=self._step
         ) if self._iface else None
-        self._iface._update_meta(num=nm, file=fm) if (
-            nm or fm
-        ) and self._iface else None
+        self._iface._update_meta(num=nm, df=fm) if (nm or fm) and self._iface else None
 
     def _m(self, nm, fm, k, v) -> None:
         if k not in self.settings.meta:
-            if isinstance(v, File):
+            if isinstance(v, File) or isinstance(v, Data):
                 if v.__class__.__name__ not in fm:
                     fm[v.__class__.__name__] = []
                 fm[v.__class__.__name__].append(k)
@@ -217,7 +233,7 @@ class Ops:
             logger.debug(f"{tag}: added {k} at step {self._step}")
         return nm, fm
 
-    def _op(self, n, f, k, v) -> None:
+    def _op(self, n, d, f, k, v) -> None:
         if isinstance(v, File):
             if isinstance(v, Image) or isinstance(v, Audio):
                 v.load(self.settings.get_dir())
@@ -225,11 +241,14 @@ class Ops:
             v._mkcopy(self.settings.get_dir())  # key independent
             # d[k] = int(v._id, 16)
             if k not in f:
-                f[k] = [v]
-            else:
-                f[k].append(v)
+                f[k] = []
+            f[k].append(v)
+        elif isinstance(v, Data):
+            if k not in d:
+                d[k] = []
+            d[k].append(v)
         elif isinstance(v, (int, float)):
             n[k] = v
         else:
             logger.warning(f"{tag}: unsupported type {type(v)}")
-        return n, f
+        return n, d, f

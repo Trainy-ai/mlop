@@ -15,12 +15,15 @@ from PIL import Image as PILImage
 from .util import get_class
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
+tag = "File"
 
 VALID_CHAR = re.compile(r"^[a-zA-Z0-9_\-.]+$")
 INVALID_CHAR = re.compile(r"[^a-zA-Z0-9_\-.]")
 
 
 class File:
+    tag = tag
+
     def __init__(
         self,
         path: str,
@@ -35,7 +38,7 @@ class File:
             e = ValueError(
                 f"invalid file name: {name}; file name may only contain alphanumeric characters, dashes, underscores, and periods; proceeding with sanitized name"
             )
-            logger.warning("File: %s", e)
+            logger.warning(f"{self.tag}: %s", e)
             name = INVALID_CHAR.sub("-", name)
         self._name = name
         self._ext = os.path.splitext(self._path)[-1]
@@ -61,6 +64,8 @@ class File:
 
 
 class Image(File):
+    tag = "Image"
+
     def __init__(
         self,
         data: Union[PILImage.Image, np.ndarray],
@@ -71,27 +76,27 @@ class Image(File):
         self._ext = ".png"
 
         if isinstance(data, str):
-            logger.debug("Image: used file")
+            logger.debug(f"{self.tag}: used file")
             self._image = "file"  # self._image = PILImage.open(data)
             self._path = os.path.abspath(data)
         else:
             self._path = None
             if isinstance(data, PILImage.Image):
-                logger.debug("Image: used PILImage")
+                logger.debug(f"{self.tag}: used PILImage")
                 self._image = data
             else:
                 class_name = get_class(data)
                 if class_name.startswith("matplotlib."):
-                    logger.debug("Image: attempted conversion from matplotlib")
-                    self._image = make_compat_matplotlib(data)
+                    logger.debug(f"{self.tag}: attempted conversion from matplotlib")
+                    self._image = make_compat_image_matplotlib(data)
                 elif class_name.startswith("torch.") and (
                     "Tensor" in class_name or "Variable" in class_name
                 ):
-                    logger.debug("Image: attempted conversion from torch")
-                    self._image = make_compat_torch(data)
+                    logger.debug(f"{self.tag}: attempted conversion from torch")
+                    self._image = make_compat_image_torch(data)
                 else:
-                    logger.debug("Image: attempted conversion from array")
-                    self._image = make_compat_numpy(data)
+                    logger.debug(f"{self.tag}: attempted conversion from array")
+                    self._image = make_compat_image_numpy(data)
 
     def load(self, dir=None):
         if not self._path:
@@ -107,11 +112,13 @@ class Image(File):
         super().__init__(path=self._path, name=self._name)
         if not self._type.startswith("image/"):
             logger.error(
-                f"Image: proceeding with potentially incompatible mime type: {self._type}"
+                f"{self.tag}: proceeding with potentially incompatible mime type: {self._type}"
             )
 
 
 class Audio(File):
+    tag = "Audio"
+
     def __init__(
         self, data: Union[str, np.ndarray], caption: str | None = None
     ) -> None:
@@ -120,16 +127,16 @@ class Audio(File):
         self._ext = ".wav"
 
         if isinstance(data, str):
-            logger.debug("Audio: used file")
+            logger.debug(f"{self.tag}: used file")
             self._audio = "file"
             self._path = os.path.abspath(data)
         else:
             self._path = None
             if isinstance(data, np.ndarray):
-                logger.debug("Audio: used numpy array")
+                logger.debug(f"{self.tag}: used numpy array")
                 self._audio = data
             else:
-                logger.critical("Audio: unsupported data type: %s", type(data))
+                logger.critical(f"{self.tag}: unsupported data type: %s", type(data))
 
     def load(self, dir=None):
         if not self._path:
@@ -141,7 +148,7 @@ class Audio(File):
         super().__init__(path=self._path, name=self._name)
 
 
-def make_compat_matplotlib(val: any) -> any:
+def make_compat_image_matplotlib(val: any) -> any:
     # from matplotlib.spines import Spine # only required for is_frame_like workaround
     import matplotlib.pyplot as plt
     from matplotlib.figure import Figure
@@ -155,7 +162,7 @@ def make_compat_matplotlib(val: any) -> any:
                 e = ValueError(
                     "Invalid matplotlib object; must be a matplotlib.pyplot or matplotlib.figure.Figure object"
                 )
-                logger.critical("Image failed: %s", e)
+                logger.critical(f"{tag}: Image conversion failed: %s", e)
                 raise e
 
     from io import BytesIO
@@ -166,7 +173,7 @@ def make_compat_matplotlib(val: any) -> any:
     return image
 
 
-def make_compat_torch(val: any) -> any:
+def make_compat_image_torch(val: any) -> any:
     from torchvision.utils import make_grid
 
     if hasattr(val, "requires_grad") and val.requires_grad:
@@ -180,7 +187,7 @@ def make_compat_torch(val: any) -> any:
     return image
 
 
-def make_compat_numpy(val: any) -> any:
+def make_compat_image_numpy(val: any) -> any:
     import numpy as np
 
     if hasattr(val, "numpy"):

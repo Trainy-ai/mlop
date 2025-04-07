@@ -12,7 +12,7 @@ from .sets import Settings, get_console
 from .util import ANSI, print_url
 
 tlogger = logging.getLogger("auth")
-tag = "Auth"
+tag = "Authentication"
 
 
 def login(settings=None, retry=False):
@@ -23,16 +23,16 @@ def login(settings=None, retry=False):
     except keyring.errors.NoKeyringError:  # fallback
         keyring.set_keyring(PlaintextKeyring())
         auth = keyring.get_password(f"{settings.tag}", f"{settings.tag}")
-    if settings.auth is None:
+    if settings._auth is None:
         if auth == "":
             keyring.delete_password(f"{settings.tag}", f"{settings.tag}")
         elif auth is not None:
-            settings.auth = auth
-    if settings.auth == "":
+            settings._auth = auth
+    if settings._auth == "":
         tlogger.critical(
             "%s: authentication failed: the provided token cannot be empty", tag
         )
-        settings.auth = "_key"
+        settings._auth = "_key"
     client = httpx.Client(
         verify=True if not settings.insecure_disable_ssl else False,
         proxy=settings.http_proxy or settings.https_proxy or None
@@ -40,12 +40,12 @@ def login(settings=None, retry=False):
     r = client.post(
         url=settings.url_login,
         headers={
-            "Authorization": f"Bearer {settings.auth}",
+            "Authorization": f"Bearer {settings._auth}",
         },
     )
     try:
         tlogger.info(f"{tag}: logged in as {r.json()['organization']['slug']}")
-        keyring.set_password(f"{settings.tag}", f"{settings.tag}", f"{settings.auth}")
+        keyring.set_password(f"{settings.tag}", f"{settings.tag}", f"{settings._auth}")
         teardown_logger(tlogger)
     except Exception as e:
         if retry:
@@ -58,12 +58,12 @@ def login(settings=None, retry=False):
         )
         webbrowser.open(url=settings.url_token)
         if get_console() == "jupyter":
-            settings.auth = getpass.getpass(prompt="Enter API key: ")
+            settings._auth = getpass.getpass(prompt="Enter API key: ")
         else:
-            settings.auth = input(f"{ANSI.yellow}Enter API key: ")
+            settings._auth = input(f"{ANSI.yellow}Enter API key: ")
         try:
             keyring.set_password(
-                f"{settings.tag}", f"{settings.tag}", f"{settings.auth}"
+                f"{settings.tag}", f"{settings.tag}", f"{settings._auth}"
             )
         except Exception as e:
             tlogger.critical(

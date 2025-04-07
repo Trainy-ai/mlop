@@ -1,3 +1,5 @@
 .mlop
 *.pt
+*.onnx*
 MNIST
+model*
