@@ -21,6 +21,12 @@ ABBR = {
     "bytes_": "bytes/",
 }
 
+def make_compat_check_v1(settings):
+    return json.dumps(
+        {
+            "runId": settings._op_id,
+        }
+    ).encode()
 
 def make_compat_start_v1(config, settings, info):
     return json.dumps(

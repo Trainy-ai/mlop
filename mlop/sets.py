@@ -50,6 +50,8 @@ class Settings:
 
     url: str = "https://demo.mlop.ai"
     url_token: str = f"{url}/api-keys"
+    _url_py: str = "https://py.mlop.ai"
+    url_trigger: str = f"{_url_py}/api/runs/triggers"
     _url_api: str = "https://api.mlop.ai"
     url_login: str = f"{_url_api}/api/is-logged-in"
     url_start: str = f"{_url_api}/api/create-run"

@@ -9,7 +9,7 @@ import time
 import traceback
 from collections.abc import Mapping
 
-from .api import make_compat_monitor_v1, make_compat_start_v1
+from .api import make_compat_check_v1, make_compat_monitor_v1, make_compat_start_v1
 from .auth import login
 from .data import Data
 from .file import Audio, File, Image
@@ -58,12 +58,24 @@ class OpMonitor:
 
     def _worker_monitor(self, stop):
         while not stop():
-            self.op._iface.publish(
-                num=make_compat_monitor_v1(self.op.settings._sys.monitor()),
-                file=None,
-                timestamp=time.time(),
-                step=self.op._step,
-            ) if self.op._iface else None
+            try:
+                self.op._iface.publish(
+                    num=make_compat_monitor_v1(self.op.settings._sys.monitor()),
+                    file=None,
+                    timestamp=time.time(),
+                    step=self.op._step,
+                ) if self.op._iface else None
+                r = self.op._iface._post_v1(
+                    self.op.settings.url_trigger,
+                    self.op._iface.headers,
+                    make_compat_check_v1(self.op.settings),
+                    client=self.op._iface.client,
+                )
+                if r.json()["status"] == "CANCELLED":
+                    logger.critical(f"{tag}: server finished run")
+                    os._exit(signal.SIGINT.value)  # TODO: do a more graceful exit
+            except Exception as e:
+                logger.critical("%s: failed: %s", tag, e)
             time.sleep(self.op.settings.x_sys_sampling_interval)
 
 
@@ -155,7 +167,7 @@ class Op:
                             "lineno": frame.lineno,
                             "name": frame.name,
                             "line": frame.line,
-                        } 
+                        }
                         for frame in traceback.extract_tb(e.__traceback__)
                     ],
                     "trace": traceback.format_exc(),
@@ -226,7 +238,7 @@ class Op:
                 if v.__class__.__name__ not in fm:
                     fm[v.__class__.__name__] = []
                 fm[v.__class__.__name__].append(k)
-            elif isinstance(v, (int, float)) or v.__class__.__name__ == 'Tensor':
+            elif isinstance(v, (int, float)) or v.__class__.__name__ == "Tensor":
                 nm.append(k)
             self.settings.meta.append(k)
             # d[f"{self.settings.x_meta_label}{k}"] = 0
@@ -249,7 +261,7 @@ class Op:
             d[k].append(v)
         elif isinstance(v, (int, float)):
             n[k] = v
-        elif v.__class__.__name__ == 'Tensor':
+        elif v.__class__.__name__ == "Tensor":
             if len(v.shape) == 0:
                 n[k] = v.item()
             else:
