@@ -1,4 +1,7 @@
+import json
 import logging
+from functools import reduce
+from operator import mul
 
 import torch
 
@@ -10,40 +13,101 @@ tag = "Torch"
 
 def watch(
     module: torch.nn.Module,
-    # log: str | None = "gradients",
+    disable_graph: bool = False,
     disable_grad: bool = False,
     disable_param: bool = False,
-    freq: int | None = 1000,  # log_freq
+    freq: int | None = 1000,
     bins: int | None = 64,
+    **kwargs,
 ):
+    # TODO: remove legacy compat
+    if "log" in kwargs:
+        disable_grad = kwargs["log"] not in ["gradients", "all"]
+        disable_param = kwargs["log"] not in ["parameters", "all"]
+    if "log_freq" in kwargs:
+        freq = kwargs["log_freq"]
+    if "log_graph" in kwargs:
+        disable_graph = not kwargs["log_graph"]
+
     if mlop.ops is None or len(mlop.ops) == 0:
         logger.critical(f"{tag}: no runs to attach, please call mlop.init() first")
         return
     else:
-        op = mlop.ops[-1]
-        log, hooks = op.log, mlop._hooks
+        op, hooks = mlop.ops[-1], mlop._hooks
+        op._module, module._nodes = module, []
 
     if not disable_grad:
         for name, param in module.named_parameters():
             if param.requires_grad and check_param(param, name):
-                hooks.append(
-                    param.register_hook(_backward(op, name, freq, bins))
-                )
+                hooks.append(param.register_hook(_backward(op, name, freq, bins)))
 
     if not disable_param:
         hooks.append(module.register_forward_hook(_forward(op, freq, bins)))
 
+    if not disable_graph:
+        types = [
+            getattr(torch.nn, t)
+            for t in (
+                "Container",
+                "Sequential",
+                "ModuleList",
+                "ModuleDict",
+            )
+            if hasattr(torch.nn, t)
+        ]
+        hooks.extend(_hook_child(op, types, module, hooks))
     return hooks
 
 
-def check_param(param, name):
-    if isinstance(param, torch.autograd.Variable):
-        return True
-    else:
-        logger.error(
-            f"{tag}: {name} is of type {type(param).__module__}.{type(param).__name__} and not a torch.Variable"
-        )
-        return False
+def _hook_child(op, types, module, hooks=[], prefix=None):
+    for name, child in module.named_children():
+        if prefix:
+            name = f"{prefix}.{name}"
+        try:
+            if not isinstance(child, tuple(types)):
+                hooks.append(child.register_forward_hook(_forward_child(op, name)))
+            else:
+                hooks = _hook_child(op, types, child, hooks, name)
+        except RuntimeError as e:
+            logger.error("%s: failed to watch child %s: %s", tag, name, e)
+    return hooks
+
+
+def _forward_child(op, name):
+    c = [0]
+
+    def f(module, input, output):
+        if c[0] == 1:
+            if op._module._nodes:
+                print({
+                    "name": "torch",
+                    "nodes": op._module._nodes,
+                })
+                op._module._nodes = []
+            return
+        c[0] = 1
+
+        params = {
+            pname: list(param.size()) for pname, param in module.named_parameters()
+        }
+
+        _up = get_node_id(input) if isinstance(input, tuple) else get_node_id((input,))
+        _down = get_node_id(output) if isinstance(output, tuple) else get_node_id((output,))
+
+        node = {
+            "name": name,
+            "id": id(module),
+            # "class": str(module),
+            "module": get_module_info(module),
+            "params": params,
+            "shapes": {
+                "input": [get_shape(i) for i in input],
+                "output": get_shape(output),
+            },
+            "edges": {"up": _up, "down": _down},
+        }
+        op._module._nodes.append(node)
+    return f
 
 
 def _backward(op, name, freq, bins):
@@ -54,7 +118,7 @@ def _backward(op, name, freq, bins):
         if c[0] < freq:
             return
         c[0] = 0
-        hist = make_compat_histogram_torch(grad.data, bins)
+        hist = make_compat_histogram_tensor(grad.data, bins)
         if hist is not None:
             op.log({f"{op.settings.x_grad_label}/{name}": hist}, step=op._step)
 
@@ -72,7 +136,7 @@ def _forward(op, freq, bins):
 
         for name, param in module.named_parameters():
             if check_param(param, name):
-                hist = make_compat_histogram_torch(param.data, bins)
+                hist = make_compat_histogram_tensor(param.data, bins)
                 if hist is not None:
                     op.log({f"{op.settings.x_param_label}/{name}": hist}, step=op._step)
                 else:
@@ -81,7 +145,70 @@ def _forward(op, freq, bins):
     return f
 
 
-def make_compat_histogram_torch(tensor, bins=64):
+def check_param(param, name):
+    if isinstance(param, torch.autograd.Variable):
+        return True
+    else:
+        logger.error(
+            f"{tag}: {name} is of type {type(param).__module__}.{type(param).__name__} and not a torch.Variable"
+        )
+        return False
+
+
+def get_module_info(module):
+    info = {"name": module.__class__.__name__, "args": [], "kwargs": {}}
+
+    if hasattr(module, "in_channels") and hasattr(module, "out_channels"):
+        info["args"] = [module.in_channels, module.out_channels]
+    elif hasattr(module, "in_features") and hasattr(module, "out_features"):
+        info["args"] = [module.in_features, module.out_features]
+
+    for k, v in module.__dict__.items():  # dir(module)
+        if not k.startswith("_") and not callable(v):  # skip private attrs and methods
+            if isinstance(v, torch.Size):
+                v = tuple(v)
+            elif hasattr(v, "item"):
+                try:
+                    v = v.item()
+                except Exception:
+                    continue
+            if (
+                v is not None
+                and v != ()
+                and v != []
+                and isinstance(v, (int, float, str, bool))
+            ):
+                info["kwargs"][k] = v
+
+    return info
+
+
+def get_node_id(tensors):
+    if not isinstance(tensors, tuple):
+        tensors = (tensors,)
+    return [
+        getattr(t, "_node_id", t.data_ptr() if hasattr(t, "data_ptr") else id(t))
+        for t in tensors
+    ]
+
+
+def get_shape(tensor, r=set()):
+    if hasattr(tensor, "size"):
+        return list(tensor.size())  # pytorch
+    elif hasattr(tensor, "get_shape"):
+        return tensor.get_shape().as_list()  # tensorflow
+    elif hasattr(tensor, "shape"):
+        return tensor.shape
+
+    try:
+        r.add(id(tensor))
+        return [get_shape(i, r) if id(i) not in r else 0 for i in tensor]
+    except TypeError:
+        logger.error(f"{tag}: {tensor} is not iterable")
+        return []
+
+
+def make_compat_histogram_tensor(tensor, bins=64):
     if isinstance(tensor, (tuple, list)):
         tensor = torch.cat([t.detach().clone().reshape(-1) for t in tensor])
     tensor = tensor.detach().clone()
