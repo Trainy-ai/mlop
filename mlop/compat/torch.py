@@ -31,35 +31,33 @@ def watch(
         logger.critical(f"{tag}: no runs to attach, please call mlop.init() first")
         return
     else:
-        op, hooks = mlop.ops[-1], mlop._hooks
+        op = mlop.ops[-1]
         op._torch, module._nodes = module, {}
 
-    if not disable_grad:
+    if not disable_grad and not hasattr(module, "_hook_grad"):
+        module._hook_grad = []
         for name, param in module.named_parameters():
             if param.requires_grad and check_param(param, name):
-                hooks.append(param.register_hook(_backward(op, name, freq, bins)))
+                module._hook_grad.append(
+                    param.register_hook(_backward(op, name, freq, bins))
+                )
 
-    if not disable_param:
-        hooks.append(module.register_forward_hook(_forward(op, freq, bins)))
+    if not disable_param and not hasattr(module, "_hook_param"):
+        module._hook_param = [module.register_forward_hook(_forward(op, freq, bins))]
 
-    if not disable_graph:
-        module.apply(_add_hooks)
-        hooks.append(module.register_forward_hook(_forward_module(op)))
-
-    return hooks
+    if not disable_graph and not hasattr(module, "_hook_graph"):
+        module._hook_graph = [
+            module.apply(_add_hooks),
+            module.register_forward_hook(_forward_module(op)),
+        ]
 
 
 def _forward_module(op):
     c = [0]
 
-    def f(module, input, output):
+    def f(module, inputs, outputs):
         if c[0] == 1:
             if op._torch._nodes:
-                import json
-
-                with open("module.json", "w") as f:
-                    json.dump(op._torch._nodes, f)
-
                 op._iface._post_v1(
                     op.settings.url_graph,
                     op._iface.headers,
@@ -272,20 +270,21 @@ def read_module(module, inst_id=0):
                     if up["node"].startswith("in_"):
                         continue
 
-                up_module = up["node"]
-                if isinstance(up_module, ModuleInst):
+                if isinstance(up["node"], ModuleInst):
                     id_module = (
-                        id(up_module.module),
-                        up_module.inst_id,
+                        id(up["node"].module),
+                        up["node"].inst_id,
                     )
                     if id_module not in s:
                         s.add(id_module)
                         for j, input_grad_fn in enumerate(
-                            up_module.module._metadata["grad_fn_in"][up_module.inst_id]
+                            up["node"].module._metadata["grad_fn_in"][
+                                up["node"].inst_id
+                            ]
                         ):
                             to_process.append(
                                 {
-                                    "node": up_module,
+                                    "node": up["node"],
                                     "index": j,
                                     "grad_fn": input_grad_fn,
                                     "is_up": False,
@@ -298,16 +297,51 @@ def read_module(module, inst_id=0):
 
 
 def _add_hooks(module):
+    hooks = []
+
+    def _pre_hook(module, inputs):
+        inputs = _enforce_grad(inputs)
+        module._metadata["grad_fn_in"][module._metadata["num_fwd"]] = _next_grad_fns(
+            inputs
+        )
+        module._metadata["num_fwd"] += 1
+        return _enforce_grad(inputs)
+
+    def _post_hook(module, inputs, outputs):
+        outputs, s = _enforce_tuple(outputs)
+
+        _add_metadata(module, inputs, outputs)
+        inst_id = module._metadata["num_fwd"] - 1
+        assert inst_id >= 0
+        outputs = _enforce_grad(outputs)
+        module._metadata["grad_fn_out"][inst_id] = _grad_fns(outputs)
+        outputs = _enforce_grad(outputs)
+
+        for io, i_name in [
+            (_next_grad_fns(inputs), "i_in"),
+            (_grad_fns(outputs), "i_out"),
+        ]:
+            for i, grad_fn in enumerate(io):
+                if grad_fn is not None:
+                    assert isinstance(grad_fn.metadata, dict)
+
+                    grad_fn.metadata["module"] = module
+                    grad_fn.metadata["inst_id"] = inst_id
+                    grad_fn.metadata[i_name] = i
+
+        return outputs[0] if s else outputs
+
     module._metadata = {
-        "tracking": False,
         "grad_fn_in": {},
         "grad_fn_out": {},
         "num_fwd": 0,
     }
-    if not module._metadata["tracking"]:
-        module.register_forward_pre_hook(_pre_hook)
-        module.register_forward_hook(_post_hook)
+    if not module._metadata.get("tracking"):
+        hooks.append(module.register_forward_pre_hook(_pre_hook))
+        hooks.append(module.register_forward_hook(_post_hook))
         module._metadata["tracking"] = True
+
+    return hooks
 
 
 def _add_metadata(module, inputs, outputs):
@@ -322,50 +356,27 @@ def _add_metadata(module, inputs, outputs):
         }
 
 
-def _pre_hook(module, inputs):
-    inputs = _enforce_grad(inputs)
-    module._metadata["grad_fn_in"][module._metadata["num_fwd"]] = _next_grad_fns(inputs)
-    module._metadata["num_fwd"] += 1
-    return _enforce_grad(inputs)
-
-
-def _post_hook(module, inputs, outputs):
-    if not isinstance(outputs, tuple):
-        outputs, s = (outputs,), True
-
-    _add_metadata(module, inputs, outputs)
-    inst_id = module._metadata["num_fwd"] - 1
-    outputs = _enforce_grad(outputs)
-    module._metadata["grad_fn_out"][inst_id] = _grad_fns(outputs)
-    outputs = _enforce_grad(outputs)
-
-    for io, i_name in [
-        (_next_grad_fns(inputs), "i_in"),
-        (_grad_fns(outputs), "i_out"),
-    ]:
-        for i, grad_fn in enumerate(io):
-            assert isinstance(grad_fn.metadata, dict)
-
-            grad_fn.metadata["module"] = module
-            grad_fn.metadata["inst_id"] = inst_id
-            grad_fn.metadata[i_name] = i
-
-    return outputs[0] if s else outputs
+def _enforce_tuple(i, t=torch.Tensor):
+    s = i is None or isinstance(i, t)
+    r = (i,) if s else i
+    return r, s
 
 
 def _enforce_grad(tensors):
     def process_tensor(t):
-        dummy_tensor = torch.tensor(0.0, requires_grad=True)
-        return t + dummy_tensor if torch.is_floating_point(t) else t
+        d = torch.tensor(0.0, requires_grad=True)
+        if t is None:
+            return d
+        return t + d if torch.is_floating_point(t) else t
 
-    return tuple(process_tensor(t) for t in tensors if t is not None)
+    return tuple(process_tensor(t) for t in tensors)
 
 
 def _grad_fns(tensors):
-    def process_tensor(tensor):
-        return tensor.grad_fn if tensor.requires_grad else None
+    def process_tensor(t):
+        return t.grad_fn if t.requires_grad else None
 
-    return tuple(process_tensor(tensor) for tensor in tensors if tensor is not None)
+    return tuple(process_tensor(t) for t in tensors)
 
 
 def _next_grad_fns(tensors):
@@ -433,7 +444,7 @@ def get_shape(tensor, r=set()):
         r.add(id(tensor))
         return [get_shape(i, r) if id(i) not in r else 0 for i in tensor]
     except TypeError:
-        logger.error(f"{tag}: {tensor} is not iterable")
+        logger.error(f"{tag}: tensor {tensor} is not iterable")
         return []
 
 
