@@ -75,8 +75,8 @@ class OpMonitor:
                     self.op._iface.headers,
                     make_compat_check_v1(self.op.settings),
                     client=self.op._iface.client,
-                )
-                if r.json()["status"] == "CANCELLED":
+                ) if self.op._iface else None
+                if hasattr(r, "json") and r.json()["status"] == "CANCELLED":
                     logger.critical(f"{tag}: server finished run")
                     os._exit(signal.SIGINT.value)  # TODO: do a more graceful exit
             except Exception as e:
@@ -95,7 +95,7 @@ class Op:
             self.settings.disable_store = True
         else:
             # TODO: set up tmp dir
-            login()
+            login(settings=self.settings)
             self.settings._sys = System(self.settings)
             tmp_iface = ServerInterface(config=config, settings=settings)
             r = tmp_iface._post_v1(

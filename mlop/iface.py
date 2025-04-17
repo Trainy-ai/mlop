@@ -1,10 +1,12 @@
 import logging
 import queue
+import sys
 import threading
 import time
 
 import httpx
 import keyring
+from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
 from .api import (
@@ -88,6 +90,7 @@ class ServerInterface:
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             transient=True,
+            console=Console(file=sys.stderr),
         )
         self._progress_task = None
         self._thread_progress = None
@@ -222,7 +225,7 @@ class ServerInterface:
                 if self._total > 0:
                     if self._progress_task is None:
                         self._progress_task = self._progress.add_task(
-                            "Processing", total=100
+                            "Processing:", total=100
                         )
                         self._progress.start()
 
@@ -237,7 +240,7 @@ class ServerInterface:
                             completed=min(100 * i / self._total, 100),
                             description=f"Uploading ({max(i, 0)}/{self._total}):",
                         )
-                        if self._nb and hasattr(self._progress, 'live'):
+                        if self._nb and hasattr(self._progress, "live"):
                             self._progress.live.refresh()
 
             time.sleep(self.settings.x_internal_check_process)
@@ -255,9 +258,9 @@ class ServerInterface:
                     name=name,
                 )
 
-    def _worker_storage(self, f):
+    def _worker_storage(self, f, url):
         _ = self._put_v1(
-            f._url,
+            url,
             {
                 "Content-Type": f._type,  # "application/octet-stream"
             },
@@ -274,24 +277,23 @@ class ServerInterface:
         )
         try:
             d = r.json()
-            logger.debug(f"{tag}: file api responded {len(d)} key(s)")
             for k, fel in file.items():
                 for f in fel:
-                    f._url = make_compat_storage_v1(f, d[k])
-                    if not f._url:
+                    url = make_compat_storage_v1(f, d[k])
+                    if not url:
                         logger.critical(f"{tag}: file api did not provide storage url")
                     else:
                         self._thread_storage = threading.Thread(
-                            target=self._worker_storage, args=(f,), daemon=True
+                            target=self._worker_storage, args=(f, url), daemon=True
                         )
                         self._thread_storage.start()
         except Exception as e:
             logger.critical(
-                "%s: failed to send files to %s: %s (%s)",
+                "%s: failed to send files to %s: [%s] %s",
                 tag,
                 self.settings.url_file,
-                e,
                 type(e).__name__,
+                e,
             )
 
     def _worker_meta(self, num=None, file=None):
@@ -324,84 +326,69 @@ class ServerInterface:
             except queue.Empty:
                 break
 
-    def _put_v1(self, url, headers, content, client=None, retry=0):
+    def _try(self, method, url, headers, content, name=None, q=None, retry=0):
+        if retry >= self.settings.x_file_stream_retry_max:
+            logger.critical(f"{tag}: {name}: failed after {retry} retries")
+            return None
+
         try:
-            r = client.put(
-                url,
-                content=content,
-                headers=headers,
-            )
+            r = method(url, content=content, headers=headers)
             if r.status_code in [200, 201]:
-                logger.debug(f"{tag}: successfully put one item in storage")
                 return r
-            else:
-                logger.error(
-                    f"{tag}: server responded error {r.status_code} during PUT to {url}: {r.text}"
-                )
+            logger.warning(
+                f"{tag}: {name}: retry {retry + 1}/{self.settings.x_file_stream_retry_max}: response code {r.status_code if r else 'N/A'} for {len(q) if q else 'request'} from {url}: {r.text if r else 'N/A'}"
+            )
         except Exception as e:
-            logger.error(
-                "%s: no response received during PUT to %s: %s: %s",
+            logger.warning(
+                "%s: %s: no response from %s: %s: %s",
                 tag,
+                name,
                 url,
                 type(e).__name__,
                 e,
             )
-        retry += 1
-        self._put_v1(
-            url, headers, content, client=client, retry=retry
-        ) if retry < self.settings.x_file_stream_retry_max else logger.critical(
-            f"{tag}: failed to put item in storage after {retry} retries to {url}"
+        time.sleep(
+            min(
+                self.settings.x_file_stream_retry_wait_min_seconds * (2 ** (retry + 1)),
+                self.settings.x_file_stream_retry_wait_max_seconds,
+            )
         )
 
-    def _post_v1(self, url, headers, q, client=None, name=None, retry=0):
-        b, r = [], None
-        try:
-            s = time.time()
-            content = self._queue_iter(q, b) if isinstance(q, queue.Queue) else q
-            r = client.post(
-                url,
-                content=content,  # iter(q.get, None),
-                headers=headers,
-            )
-            if r.status_code in [200, 201]:
-                if name is not None and isinstance(q, queue.Queue):
-                    logger.debug(
-                        f"{tag}: {name}: sent {len(b)} line(s) at {len(b) / (time.time() - s):.2f} lines/s to {url}"
-                    )
-                return r
-            else:
-                if name is not None:
-                    logger.error(
-                        f"{tag}: {name}: server responded error {r.status_code} for {len(b)} line(s) during POST: {r.text}"
-                    )
-        except Exception as e:
-            logger.error(
-                "%s: no response received during POST to %s: %s: %s",
-                tag,
-                url,
-                type(e).__name__,
-                e,
-            )
+        if q is not None:  # requeue items
+            for i in q:
+                content.put(i, block=False)
+        return self._try(method, url, headers, content, name=name, q=q, retry=retry + 1)
 
-        retry += 1
-        if retry < self.settings.x_file_stream_retry_max:
-            logger.warning(
-                f"{tag}: retry {retry}/{self.settings.x_file_stream_retry_max}: server responded error {r.status_code} for {len(b)} line(s) during POST to {url}: {r.text}"
-                if r
-                else f"{tag}: retry {retry}/{self.settings.x_file_stream_retry_max}: no response received for {len(b)} line(s) during POST to {url}"
+    def _put_v1(self, url, headers, content, client, name="put"):
+        return self._try(
+            client.put,
+            url,
+            headers,
+            content,
+            name=name,
+        )
+
+    def _post_v1(self, url, headers, q, client, name="post"):
+        b, r = [], None
+        content = self._queue_iter(q, b) if isinstance(q, queue.Queue) else q
+
+        s = time.time()
+        r = self._try(
+            client.post,
+            url,
+            headers,
+            content,
+            name=name,
+            q=b if isinstance(q, queue.Queue) else None,
+        )
+
+        if (
+            r
+            and r.status_code in [200, 201]
+            and name is not None
+            and isinstance(q, queue.Queue)
+        ):
+            logger.debug(
+                f"{tag}: {name}: sent {len(b)} line(s) at {len(b) / (time.time() - s):.2f} lines/s to {url}"
             )
-            time.sleep(
-                min(
-                    self.settings.x_file_stream_retry_wait_min_seconds * (2**retry),
-                    self.settings.x_file_stream_retry_wait_max_seconds,
-                )
-            )
-            for i in b:  # if isinstance(q, queue.Queue)
-                q.put(i, block=False)
-            return self._post_v1(url, headers, q, client=client, retry=retry)  # kwargs
-        else:
-            if name is not None:
-                logger.critical(
-                    f"{tag}: {name}: failed to send {len(b)} line(s) after {retry} retries"
-                )
-            return None
+        return r

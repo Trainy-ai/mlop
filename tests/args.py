@@ -11,9 +11,18 @@ import keyring
 
 AUTH = "mlpi_public_use_only_"
 URL_LIST = {
-    "LOCAL": "http://localhost:3000",
-    "REMOTE": "https://server.mlop.ai",
-    "REMOTE_API": "https://api.mlop.ai/api/create-run",
+    "DEV": {
+        "APP": "https://dev.mlop.ai",
+        "API": "https://api-dev.mlop.ai",
+        "INGEST": "https://ingest-dev.mlop.ai",
+        "PY": "https://py-dev.mlop.ai",
+    },
+    "PROD": {
+        "APP": "https://app.mlop.ai",
+        "API": "https://api-prod.mlop.ai",
+        "INGEST": "https://ingest-prod.mlop.ai",
+        "PY": "https://py-prod.mlop.ai",
+    },
 }
 PLATFORM_PREFS = {
     "Darwin": {
@@ -69,7 +78,7 @@ def parse(TAG):
     parser = argparse.ArgumentParser(description=f"{TAG}: script for logger testing")
     parser.add_argument(
         "lib",
-        choices=["m", "r", "w"],
+        choices=["d", "p", "l", "w"],
         nargs="?",
         help="Library: mlop (local) [m], mlop (vps) [r], alternative [w]",
     )
@@ -112,16 +121,27 @@ def read_sets_compat(args, tag):
         print(f"{tag}: Using mlop")
         import mlop
 
-        if args.lib == "m" or args.lib == "r":
-            d["auth"] = AUTH
-            if args.lib == "m":
-                d["url"] = URL_LIST["LOCAL"]
-            elif args.lib == "r":
-                d["url"] = URL_LIST["REMOTE"]
-            d["url_num"] = f"{d['url']}/ingest/metrics"
-            d["url_file"] = f"{d['url']}/files"
-            d["url_message"] = f"{d['url']}/ingest/logs"
-            d["url_status"] = URL_LIST["REMOTE_API"]
+        if args.lib == "d" or args.lib == "l":
+            # d["auth"] = AUTH
+            if args.lib == "d":
+                urls = URL_LIST["DEV"]
+
+            d["_url"] = urls["APP"]
+            d["_url_api"] = urls["API"]
+            d["_url_py"] = urls["PY"]
+            d["_url_ingest"] = urls["INGEST"]
+
+            d["url_token"] = f"{d['_url']}/api-keys"
+            d["url_trigger"] = f"{d['_url_py']}/api/runs/triggers"
+            d["url_start"] = f"{d['_url_api']}/api/runs/create"
+            d["url_stop"] = f"{d['_url_api']}/api/runs/status/update"
+            d["url_meta"] = f"{d['_url_api']}/api/runs/logName/add"
+            d["url_graph"] = f"{d['_url_api']}/api/runs/modelGraph/create"
+            d["url_num"] = f"{d['_url_ingest']}/ingest/metrics"
+            d["url_data"] = f"{d['_url_ingest']}/ingest/data"
+            d["url_file"] = f"{d['_url_ingest']}/files"
+            d["url_message"] = f"{d['_url_ingest']}/ingest/logs"
+            d["url_view"] = None
 
         if args.debug == "db":
             d["disable_iface"] = True
