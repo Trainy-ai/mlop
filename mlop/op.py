@@ -64,7 +64,6 @@ class OpMonitor:
             try:
                 self.op._iface.publish(
                     num=make_compat_monitor_v1(self.op.settings._sys.monitor()),
-                    file=None,
                     timestamp=time.time(),
                     step=self.op._step,
                 ) if self.op._iface else None
@@ -94,7 +93,8 @@ class Op:
         else:
             # TODO: set up tmp dir
             login(settings=self.settings)
-            self.settings._sys = System(self.settings)
+            if self.settings._sys == {}:
+                self.settings._sys = System(self.settings)
             tmp_iface = ServerInterface(config=config, settings=settings)
             r = tmp_iface._post_v1(
                 self.settings.url_start,  # create-run
@@ -196,7 +196,7 @@ class Op:
                 logger.critical("%s: failed: %s", tag, e)
                 raise e
 
-    def _log(self, data, step) -> None:
+    def _log(self, data, step, t=None) -> None:
         if not isinstance(data, Mapping):
             e = ValueError(
                 f"Data logged must be of dictionary type; received {type(data).__name__} intsead"
@@ -208,7 +208,7 @@ class Op:
             logger.critical("%s: failed: %s", tag, e)
             raise e
 
-        t = time.time()
+        t = time.time() if t is None else t
         if step is not None:
             if step > self._step:
                 self._step = step

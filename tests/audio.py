@@ -33,7 +33,7 @@ def test_audio(
         examples = []
         for i in range(ITEM_PER_EPOCH):
             file = mlop.Audio(f"{FILE_NAME}.ogg", caption=f"{TAG}-{e}-{i}")
-            ndarray = mlop.Audio(np.array([[1, 1, 1], [1, 1, 1]], dtype=np.float32), caption=f"{TAG}-{e}-{i}")
+            ndarray = mlop.Audio(np.array([[1, 1, 1], [1, 1, 1]], dtype=np.float32), caption=f"{TAG}-{e}-{i}", sample_rate=48000)
             examples.append(file)
             run.log({f"{TAG}/file": file})
             run.log({f"{TAG}/data": ndarray})

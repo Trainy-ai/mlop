@@ -88,7 +88,7 @@ def parse(TAG):
         "lib",
         choices=["d", "p", "l", "w"],
         nargs="?",
-        help="Library: mlop (local) [m], mlop (vps) [r], alternative [w]",
+        help="Library: mlop (dev) [d], mlop (prod) [p], mlop (local) [l], alternative [w]",
     )
     parser.add_argument(
         "debug",
@@ -123,7 +123,10 @@ def read_sets_compat(args, tag):
             pass
         mlop = importlib.import_module(module)
 
+        d["host"] = "localhost"
         d["x_log_level"] = 10
+        d["disable_git"] = True
+        d["save_code"] = False
         # d["mode"] = "offline"
     else:
         print(f"{tag}: Using mlop")

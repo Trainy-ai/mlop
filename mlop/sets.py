@@ -13,6 +13,7 @@ class Settings:
 
     _auth: str = None
     _sys: dict[str, any] = {}
+    compat: dict[str, any] = {}
     project: str = "default"
     mode: str = "perf"  # noop | debug | perf
     meta: list = None

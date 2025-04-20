@@ -124,7 +124,12 @@ class Audio(File):
         data: Union[str, np.ndarray],
         rate: int | None = 48000,
         caption: str | None = None,
+        **kwargs,
     ) -> None:
+        # TODO: remove legacy compat
+        if "sample_rate" in kwargs:
+            rate = kwargs["sample_rate"]
+
         self._name = caption or f"{uuid.uuid4()}"
         self._id = f"{uuid.uuid4()}{uuid.uuid4()}".replace("-", "")
         self._ext = ".wav"

@@ -42,6 +42,8 @@ def make_compat_start_v1(config, settings, info):
             "config": json.dumps(config) if config is not None else None,
             "loggerSettings": json.dumps(clean_dict(settings.to_dict())),
             "systemMetadata": json.dumps(info) if info is not None else None,
+            "createdAt": settings.compat.get("createdAt"),
+            "updatedAt": settings.compat.get("updatedAt"),
         }
     ).encode()
 
