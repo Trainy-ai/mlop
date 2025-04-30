@@ -9,6 +9,8 @@ import time
 import traceback
 from collections.abc import Mapping
 
+import mlop
+
 from .api import (
     make_compat_alert_v1,
     make_compat_monitor_v1,
@@ -147,6 +149,12 @@ class Op:
         self._monitor.start()
         logger.debug(f"{tag}: started")
 
+        # set globals
+        if mlop.ops is None:
+            mlop.ops = []
+        mlop.ops.append(self)
+        mlop.log, mlop.alert, mlop.watch = self.log, self.alert, self.watch
+
     def log(
         self, data: dict[str, any], step: int | None = None, commit: bool | None = None
     ) -> None:
@@ -186,6 +194,7 @@ class Op:
             logger.critical("%s: interrupted %s", tag, e)
         logger.debug(f"{tag}: finished")
         teardown_logger(logger, console=logging.getLogger("console"))
+        mlop.ops.remove(self)
 
     def watch(self, module, **kwargs):
         if any(b.__module__.startswith("torch.nn") for b in module.__class__.__bases__):

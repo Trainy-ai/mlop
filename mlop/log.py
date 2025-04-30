@@ -101,7 +101,7 @@ def setup_logger(settings, logger, console=None) -> None:
         stream_handler.setFormatter(stream_formatter(settings))
         logger.addHandler(stream_handler)
 
-    if settings._op_id and not settings.disable_logger:
+    if settings._op_id and not settings.disable_console:
         if len(console.handlers) > 0:  # full logger
             return
         logger, console = setup_logger_file(settings, logger, console)

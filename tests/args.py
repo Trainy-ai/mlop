@@ -11,6 +11,9 @@ import keyring
 
 AUTH = "mlpi_public_use_only_"
 URL_LIST = {
+    "LOCAL": {
+        "HOST": "localhost",
+    },
     "DEV": {
         "APP": "https://dev.mlop.ai",
         "API": "https://api-dev.mlop.ai",
@@ -135,27 +138,12 @@ def read_sets_compat(args, tag):
         if args.lib == "d":
             # d["auth"] = AUTH
             urls = URL_LIST["DEV"]
-
-            d["_url"] = urls["APP"]
-            d["_url_api"] = urls["API"]
-            d["_url_py"] = urls["PY"]
-            d["_url_ingest"] = urls["INGEST"]
-
-            d["url_token"] = f"{d['_url']}/api-keys"
-            d["url_alert"] = f"{d['_url_py']}/api/runs/alert"
-            d["url_trigger"] = f"{d['_url_py']}/api/runs/trigger"
-            d["url_start"] = f"{d['_url_api']}/api/runs/create"
-            d["url_stop"] = f"{d['_url_api']}/api/runs/status/update"
-            d["url_meta"] = f"{d['_url_api']}/api/runs/logName/add"
-            d["url_graph"] = f"{d['_url_api']}/api/runs/modelGraph/create"
-            d["url_num"] = f"{d['_url_ingest']}/ingest/metrics"
-            d["url_data"] = f"{d['_url_ingest']}/ingest/data"
-            d["url_file"] = f"{d['_url_ingest']}/files"
-            d["url_message"] = f"{d['_url_ingest']}/ingest/logs"
-            d["url_view"] = None
-        
-        if args.lib == "l":
-            d["_host"] = "127.0.0.1"
+            d["url_app"] = urls["APP"]
+            d["url_api"] = urls["API"]
+            d["url_py"] = urls["PY"]
+            d["url_ingest"] = urls["INGEST"]
+        elif args.lib == "l":
+            d["host"] = URL_LIST["LOCAL"]["HOST"]
 
         if args.debug == "db":
             d["disable_iface"] = True

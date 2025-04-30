@@ -12,7 +12,6 @@ class Settings:
     dir: str = str(os.path.abspath(os.getcwd()))
 
     _auth: str = None
-    _host: str = None
     _sys: dict[str, any] = {}
     compat: dict[str, any] = {}
     project: str = "default"
@@ -22,7 +21,7 @@ class Settings:
     alert: dict[str, any] = {}
     disable_store: bool = True  # TODO: make false
     disable_iface: bool = False
-    disable_logger: bool = False  # disable file-based logging
+    disable_console: bool = False  # disable file-based logging
 
     _op_name: str = None
     _op_id: int = None
@@ -52,39 +51,48 @@ class Settings:
     x_grad_label: str = "grad"
     x_param_label: str = "param"
 
-    def __init__(self, host: str = None):
-        host = host or self._host
-        self._url: str = "https://app.mlop.ai" if not host else f"http://{host}:3000"
-        self._url_api: str = (
-            "https://api-prod.mlop.ai" if not host else f"http://{host}:3001"
-        )
-        self._url_ingest: str = (
-            "https://ingest-prod.mlop.ai" if not host else f"http://{host}:3003"
-        )
-        self._url_py: str = (
-            "https://py-prod.mlop.ai" if not host else f"http://{host}:3004"
-        )
-        self.url_token: str = f"{self._url}/api-keys"
-        self.url_login: str = f"{self._url_api}/api/slug"
-        self.url_start: str = f"{self._url_api}/api/runs/create"
-        self.url_stop: str = f"{self._url_api}/api/runs/status/update"
-        self.url_meta: str = f"{self._url_api}/api/runs/logName/add"
-        self.url_graph: str = f"{self._url_api}/api/runs/modelGraph/create"
-        self.url_num: str = f"{self._url_ingest}/ingest/metrics"
-        self.url_data: str = f"{self._url_ingest}/ingest/data"
-        self.url_file: str = f"{self._url_ingest}/files"
-        self.url_message: str = f"{self._url_ingest}/ingest/logs"
-        self.url_alert: str = f"{self._url_py}/api/runs/alert"
-        self.url_trigger: str = f"{self._url_py}/api/runs/trigger"
-        self.url_view: str = None
-        self.url_webhook: str = None
+    host: str = None
+    url_view: str = None
+    url_webhook: str = None
 
     def update(self, settings) -> None:
         if isinstance(settings, Settings):
             settings = settings.to_dict()
         for key, value in settings.items():
             setattr(self, key, value)
-        self.__init__(host=self._host)
+        self.update_host()
+
+    def update_host(self):
+        if self.host is not None:
+            self.url_app = f"http://{self.host}:3000"
+            self.url_api = f"http://{self.host}:3001"
+            self.url_ingest = f"http://{self.host}:3003"
+            self.url_py = f"http://{self.host}:3004"
+        elif not (  # backwards compatibility
+            hasattr(self, "url_app")
+            and hasattr(self, "url_api")
+            and hasattr(self, "url_ingest")
+            and hasattr(self, "url_py")
+        ):
+            self.url_app = "https://app.mlop.ai"
+            self.url_api = "https://api-prod.mlop.ai"
+            self.url_ingest = "https://ingest-prod.mlop.ai"
+            self.url_py = "https://py-prod.mlop.ai"
+        self.update_url()
+
+    def update_url(self):
+        self.url_token = f"{self.url_app}/api-keys"
+        self.url_login = f"{self.url_api}/api/slug"
+        self.url_start = f"{self.url_api}/api/runs/create"
+        self.url_stop = f"{self.url_api}/api/runs/status/update"
+        self.url_meta = f"{self.url_api}/api/runs/logName/add"
+        self.url_graph = f"{self.url_api}/api/runs/modelGraph/create"
+        self.url_num = f"{self.url_ingest}/ingest/metrics"
+        self.url_data = f"{self.url_ingest}/ingest/data"
+        self.url_file = f"{self.url_ingest}/files"
+        self.url_message = f"{self.url_ingest}/ingest/logs"
+        self.url_alert = f"{self.url_py}/api/runs/alert"
+        self.url_trigger = f"{self.url_py}/api/runs/trigger"
 
     def to_dict(self) -> dict[str, any]:
         return {key: getattr(self, key) for key in self.__annotations__.keys()}

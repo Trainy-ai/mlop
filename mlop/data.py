@@ -70,7 +70,7 @@ class Histogram(Data):
 
     def __init__(self, data, bins=64):
         self._shape = "generic"
-        if len(data) == 2 and not isinstance(bins, int):
+        if not isinstance(bins, int) and len(data) == 2:
             # TODO: support non-uniform bins
             logger.debug(
                 f"{tag}: using pre-set bins from data; bins need to have uniform intervals"

@@ -54,12 +54,6 @@ def init(
         op = OpInit(config=config)
         op.setup(settings=settings)
         op = op.init()
-
-        # set globals
-        if mlop.ops is None:
-            mlop.ops = []
-        mlop.ops.append(op)
-        mlop.log, mlop.alert, mlop.watch = op.log, op.alert, op.watch
         return op
     except Exception as e:
         logger.critical("%s: failed, %s", tag, e)  # add early logger

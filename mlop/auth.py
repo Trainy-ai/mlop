@@ -36,19 +36,23 @@ def login(settings=None, retry=False):
         verify=True if not settings.insecure_disable_ssl else False,
         proxy=settings.http_proxy or settings.https_proxy or None,
     )
-    r = client.post(
-        url=settings.url_login,
-        headers={
-            "Authorization": f"Bearer {settings._auth}",
-        },
-    )
+    try:
+        r = client.post(
+            url=settings.url_login,
+            headers={
+                "Authorization": f"Bearer {settings._auth}",
+            },
+        )
+    except Exception as e:
+        tlogger.warning(f"{tag}: server not reachable; reason: {e}")
+        settings._auth = "_key"
     try:
         tlogger.info(f"{tag}: logged in as {r.json()['organization']['slug']}")
         keyring.set_password(f"{settings.tag}", f"{settings.tag}", f"{settings._auth}")
         teardown_logger(tlogger)
     except Exception as e:
         if retry:
-            tlogger.warning("%s: authentication failed", tag)
+            tlogger.warning("%s: authentication failed; reason: %s", tag, e)
         hint1 = f"{ANSI.cyan}- Please copy the API key provided in the web portal and paste it below"
         hint2 = f"- You can alternatively manually open {print_url(settings.url_token)}"
         hint3 = f"{ANSI.green}- You may exit at any time by pressing CTRL+C / ⌃+C"
