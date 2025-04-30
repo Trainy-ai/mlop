@@ -19,39 +19,28 @@
 
 ## 🚀 Getting Started
 
-Start logging your experiments with **mlop** in 4 simple steps:
+- Try **mlop** on our platform in [a notebook](https://colab.research.google.com/github/mlop-ai/mlop/blob/main/examples/intro.ipynb) & start integrating in just 5 lines of Python code:
 
-1. Get an account at [app.mlop.ai](https://app.mlop.ai/auth/sign-up)
-2. Install our Python SDK. Within a Python environment, open a Terminal window and paste in the following,
-```bash
-pip install "mlop[full]"
-```
-or, for the latest nightly,
-```bash
-pip install "mlop[full] @ git+https://github.com/mlop-ai/mlop.git"
-```
-3. Log in to your [mlop.ai](https://app.mlop.ai/o) account from within the Python client,
 ```python
-import mlop
-mlop.login()
-```
-4. Start logging your experiments by integrating **mlop** to the scripts, as an example,
-```python
+%pip install -Uq "mlop[full]"
 import mlop
 
-config = {'lr': 0.001, 'epochs': 1000}
-run = mlop.init(project="title", config=config)
-
-# insert custom model training code
-for i in range(config['epochs']):
-    run.log({"val/loss": 0})
-
-run.finish()
+mlop.init(project="hello-world")
+mlop.log({"e": 2.718})
+mlop.finish()
 ```
-And... profit! The script will redirect you to the webpage where you can view and interact with the run. The dashboard allows you to easily compare time series data and can provide actionable insights for your training.
 
-These steps are described in further detail in [introductory tutorial](https://colab.research.google.com/github/mlop-ai/mlop/blob/main/examples/intro.ipynb) and [torch tutorial](https://colab.research.google.com/github/mlop-ai/mlop/blob/main/examples/torch.ipynb).  
+- Self-host your very own **mlop** instance & get started in just 3 commands with **docker-compose**
+
+```bash
+git clone --recurse-submodules https://github.com/mlop-ai/server.git; cd server
+cp .env.example .env
+sudo docker-compose --env-file .env up --build
+```
+
 You may also learn more about **mlop** by checking out our [documentation](https://docs.mlop.ai/).
+
+You can try everything out in our [introductory tutorial](https://colab.research.google.com/github/mlop-ai/mlop/blob/main/examples/intro.ipynb) and [torch tutorial](https://colab.research.google.com/github/mlop-ai/mlop/blob/main/examples/torch.ipynb).  
 
 ## 🫡 Vision
 
