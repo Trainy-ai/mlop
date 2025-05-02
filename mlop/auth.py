@@ -21,7 +21,7 @@ def login(settings=None, retry=False):
     try:
         auth = keyring.get_password(f"{settings.tag}", f"{settings.tag}")
     except keyring.errors.NoKeyringError:  # fallback
-        keyring.set_keyring(import_lib("keyrings.alt.file").PlaintextKeyring()())
+        keyring.set_keyring(import_lib("keyrings.alt.file").PlaintextKeyring())
         auth = keyring.get_password(f"{settings.tag}", f"{settings.tag}")
     if settings._auth is None:
         if auth == "":
