@@ -38,6 +38,9 @@ def init(
     settings: Union[Settings, Dict[str, Any], None] = dict(),
     **kwargs
 ) -> Op:
+    # TODO: remove legacy compat
+    dir = kwargs.get("save_dir", dir)
+
     if not isinstance(settings, Settings):  # isinstance(settings, dict)
         default = Settings()
         default.update(settings)

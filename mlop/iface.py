@@ -205,8 +205,16 @@ class ServerInterface:
             self._progress_task = None
 
         self._update_status(self.settings)
-        time.sleep(self.settings.x_internal_check_process / 10)  # TODO: cleanup console
-        logger.info(f"{tag}: find uploaded data at {print_url(self.settings.url_view)}")
+
+        # TODO: cleanup console
+        time.sleep(self.settings.x_internal_check_process / 10)
+        logger.info(
+            f"{tag}: find {self._total} synced entries at {print_url(self.settings.url_view)}"
+        )
+        if self.settings.meta and self.settings.mode == "debug":
+            logger.info(f"{tag}: recorded metadata:")
+            for e in sorted(self.settings.meta, key=len):
+                logger.info(f"    {e}")
 
     def _update_status(self, settings, trace: Union[Any, None] = None):
         r = self._post_v1(
