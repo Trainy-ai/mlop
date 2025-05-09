@@ -5,7 +5,7 @@ import sys
 from typing import Any, Dict, List
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
-tag = "Setup"
+tag = "Settings"
 
 
 class Settings:
@@ -21,6 +21,7 @@ class Settings:
     message: queue.Queue = queue.Queue()
     disable_store: bool = True  # TODO: make false
     disable_iface: bool = False
+    disable_progress: bool = True
     disable_console: bool = False  # disable file-based logging
 
     _op_name: str = None

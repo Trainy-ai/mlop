@@ -77,7 +77,7 @@ class MLOPCallback(TrainerCallback):
                 init_args["name"] = args.run_name
                 if args.run_name == args.output_dir:
                     logger.warning(
-                        f"{tag}: run_name is currently set to the same value as TrainingArguments.output_dir."
+                        f"{tag}: run_name was set to the same value as TrainingArguments.output_dir."
                     )
 
             try:

@@ -25,10 +25,10 @@ from .iface import ServerInterface
 from .log import setup_logger, teardown_logger
 from .store import DataStore
 from .sys import System
-from .util import dict_to_json, to_json
+from .util import dict_to_json, get_val, to_json
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
-tag = "Logging"
+tag = "Operation"
 
 
 class OpMonitor:
@@ -277,17 +277,16 @@ class Op:
             except Exception as e:
                 time.sleep(self.settings.x_internal_check_process)  # debounce
                 logger.critical("%s: failed: %s", tag, e)
-                raise e
 
     def _log(self, data, step: Union[int, None], t: Union[float, None] = None) -> None:
         if not isinstance(data, Mapping):
             e = ValueError(
-                f"Data logged must be of dictionary type; received {type(data).__name__} intsead"
+                f"unsupported type for logged data: {type(data).__name__}, expected dict"
             )
             logger.critical("%s: failed: %s", tag, e)
             raise e
         if any(not isinstance(k, str) for k in data.keys()):
-            e = ValueError("Data logged must have keys of string type")
+            e = ValueError("unsupported type for key in dict of logged data")
             logger.critical("%s: failed: %s", tag, e)
             raise e
 
@@ -347,14 +346,6 @@ class Op:
             if k not in d:
                 d[k] = []
             d[k].append(v)
-        elif isinstance(v, (int, float)):
-            n[k] = v
-        elif v.__class__.__name__ == "Tensor":
-            if len(v.shape) == 0:
-                n[k] = v.item()
-            else:
-                n[k] = 0  # TODO: attempt to parse tensor
-                logger.warning(f"{tag}: unsupported tensor shape {v.shape}")
         else:
-            logger.warning(f"{tag}: unsupported type {type(v)}")
+            n[k] = get_val(v)
         return n, d, f

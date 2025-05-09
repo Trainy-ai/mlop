@@ -48,7 +48,7 @@ class ServerInterface:
         self.headers_num.update({"Content-Type": "application/x-ndjson"})
 
         self.client = httpx.Client(
-            verify=True if not self.settings.insecure_disable_ssl else False,
+            verify=not self.settings.insecure_disable_ssl,
             proxy=self.settings.http_proxy or self.settings.https_proxy or None,
             limits=httpx.Limits(
                 max_keepalive_connections=self.settings.x_file_stream_max_conn,
@@ -66,7 +66,7 @@ class ServerInterface:
             timeout=httpx.Timeout(self.settings.x_file_stream_timeout_seconds),
         )
         self.client_api = httpx.Client(
-            verify=True if not self.settings.insecure_disable_ssl else False,
+            verify=not self.settings.insecure_disable_ssl,
             proxy=self.settings.http_proxy or self.settings.https_proxy or None,
             timeout=httpx.Timeout(
                 self.settings.x_file_stream_timeout_seconds,
@@ -141,7 +141,7 @@ class ServerInterface:
                 daemon=True,
             )
             self._thread_message.start()
-        if self._thread_progress is None and self.settings.mode == "debug":
+        if self._thread_progress is None and not self.settings.disable_progress:
             self._thread_progress = threading.Thread(
                 target=self._worker_progress, daemon=True
             )
@@ -178,7 +178,7 @@ class ServerInterface:
             time.sleep(self.settings.x_internal_check_process / 10)  # TODO: cleanup
 
     def stop(self) -> None:
-        if self._thread_progress is None:  # TODO: only display progress bar if waiting
+        if self._thread_progress is None:
             self._thread_progress = threading.Thread(
                 target=self._worker_progress, daemon=True
             )
@@ -203,11 +203,9 @@ class ServerInterface:
         if self._progress_task is not None:
             self._progress.remove_task(self._progress_task)
             self._progress_task = None
-
+        self._progress.stop()
         self._update_status(self.settings)
 
-        # TODO: cleanup console
-        time.sleep(self.settings.x_internal_check_process / 10)
         logger.info(
             f"{tag}: find {self._total} synced entries at {print_url(self.settings.url_view)}"
         )
@@ -260,7 +258,6 @@ class ServerInterface:
                             description=f"Uploading ({max(i, 0)}/{self._total}):",
                         )
                         if p >= 100:
-                            time.sleep(self.settings.x_internal_check_process / 2)
                             self._progress.remove_task(self._progress_task)
                             self._progress_task = None  # signal no active task
 
@@ -375,7 +372,7 @@ class ServerInterface:
                 f"{tag}: {name}: retry {retry + 1}/{self.settings.x_file_stream_retry_max}: response code {r.status_code if r else 'N/A'} for {len(q) if q else 'request'} from {url}: {r.text if r else 'N/A'}"
             )
         except Exception as e:
-            logger.warning(
+            logger.debug(
                 "%s: %s: retry %s/%s: no response from %s: %s: %s",
                 tag,
                 name,

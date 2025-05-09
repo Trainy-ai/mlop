@@ -33,7 +33,11 @@ class ColorFormatter(logging.Formatter):
         prefix = ANSI.bold + ANSI.cyan + f"{__name__.split('.')[0]}:" + ANSI.reset
         color = colors.get(record.levelname, "")
         style = styles.get(record.levelname, "")
-        # record.msg = f"{color}{record.msg}{ANSI.reset}"
+
+        # TODO: remove legacy compat
+        if record.msg.startswith("Operation"):
+            prefix = "\n" + prefix
+        
         return f"{prefix}{color}{style}{super().format(record)}{ANSI.reset}"
 
 
@@ -48,14 +52,14 @@ class ConsoleHandler:
         self.type = type
         self.count = 0
 
-    def write(self, buf):
-        for line in buf.rstrip().splitlines():
-            self.count += 1
-            m = line.rstrip()
-            self.queue.put(
-                make_compat_message_v1(self.level, m, time.time(), self.count)
-            )
-            self.logger.log(self.level, m)
+    def write(self, buf: str) -> None:
+        for line in buf.splitlines():
+            if line:  # do not log empty lines
+                self.count += 1
+                self.queue.put(
+                    make_compat_message_v1(self.level, line, time.time(), self.count)
+                )
+                self.logger.log(self.level, line)
         self.stream.write(buf)
         self.stream.flush()
 
@@ -88,6 +92,7 @@ def input_hook(prompt="", logger=None):
 
 
 def setup_logger(settings, logger, console=None) -> None:
+    # TODO: capture stdout through rich
     if settings._nb_colab():
         rlogger = logging.getLogger()
         for h in rlogger.handlers[:]:  # iter root handlers

@@ -293,7 +293,7 @@ def make_compat_video_numpy(v: any) -> any:
     b, t, c, h, w = v.shape
 
     if v.dtype != np.uint8:
-        logger.warning(f"{tag}: converting video data to uint8")
+        logger.debug(f"{tag}: converting video data to uint8")
         v = v.astype(np.uint8)
 
     rows = 2 ** ((b.bit_length() - 1) // 2)

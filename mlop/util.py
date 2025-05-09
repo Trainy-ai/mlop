@@ -2,6 +2,7 @@ import copy
 import importlib
 import json
 import logging
+import math
 import os
 import random
 import shutil
@@ -11,6 +12,8 @@ import sys
 import time
 import uuid
 from typing import Any, Dict, Sequence, Union
+
+import numpy as np
 
 from .sets import get_console
 
@@ -209,3 +212,51 @@ def get_class(val: any) -> str:
         if module_class in ["builtins.module", "__builtin__.module"]
         else module_class
     )
+
+
+def get_val(v: Any):
+    class_name = get_class(v)
+
+    try:
+        if class_name.startswith("tensorflow."):
+            if "EagerTensor" in class_name:
+                v = v.numpy()
+            elif "Tensor" in class_name or "Variable" in class_name:
+                try:
+                    v = v.eval()
+                except RuntimeError:
+                    v = v.numpy()
+        elif class_name.startswith(("torch.", "fastai.")) and (
+            "Tensor" in class_name or "Variable" in class_name
+        ):
+            try:
+                if v.requires_grad:
+                    v = v.detach()
+                v = v.data
+            except Exception:
+                pass
+            if v.size():
+                v = v.cpu().detach().numpy()
+            else:
+                v = v.item()
+        elif class_name.startswith("jaxlib.") and "Array" in class_name:
+            jax = import_lib("jax")
+            v = jax.device_get(v)
+
+        if isinstance(v, np.ndarray):
+            if v.size == 1:
+                v = v.flatten()[0]
+        elif isinstance(v, np.generic):
+            v = v.item()
+            if isinstance(v, np.generic) and (
+                v.dtype.kind == "f" or v.dtype == "bfloat16"
+            ):
+                v = float(v)
+        elif isinstance(v, bytes):
+            v = v.decode("utf-8")
+
+        if isinstance(v, (float, int)) and not math.isnan(v):
+            return v
+    except Exception as e:
+        logger.debug("%s: %s", tag, e)
+    return 0
