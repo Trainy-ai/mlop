@@ -107,7 +107,7 @@ def parse(TAG):
     )
     return parser.parse_args()
 
-
+@timer
 def read_sets_compat(args, tag):
     os.makedirs(".mlop", exist_ok=True)
     d = {}
@@ -166,5 +166,5 @@ def read_sets_compat(args, tag):
 def init_test(TAG):
     mlop, settings = read_sets_compat(parse(TAG), TAG)
     run = mlop.init(dir=".mlop", project="test-" + TAG, settings=settings)
-    sys.stderr.write("script: Started stderr logging\n")
+    sys.stderr.write("script: Starting stderr logging\n")
     return mlop, run

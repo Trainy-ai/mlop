@@ -55,7 +55,8 @@ class System:
 
         self.requirements: List[str] = [
             f"{p.metadata.get('Name')}=={p.version}"
-            for p in importlib.metadata.distributions() if p.metadata
+            for p in importlib.metadata.distributions()
+            if p.metadata
         ]
         if self.settings.mode == "debug":  # privacy guard
             self.environ: Dict[str, str] = self.proc.environ()
@@ -78,19 +79,21 @@ class System:
         # NVIDIA
         n = run_cmd("nvidia-smi")
         if n:
-            logging.getLogger("console").error(n)  # TODO: fix logging to error
+            d["nvidia"] = {"smi": n}
             try:
                 import pynvml
 
                 try:
                     pynvml.nvmlInit()
                     logger.info(f"{tag}: NVIDIA GPU detected")
-                    d["nvidia"] = {
-                        "count": pynvml.nvmlDeviceGetCount(),
-                        "driver": pynvml.nvmlSystemGetDriverVersion(),
-                        "devices": [],
-                        "handles": [],
-                    }
+                    d["nvidia"].update(
+                        {
+                            "count": pynvml.nvmlDeviceGetCount(),
+                            "driver": pynvml.nvmlSystemGetDriverVersion(),
+                            "devices": [],
+                            "handles": [],
+                        }
+                    )
                     for i in range(d["nvidia"]["count"]):
                         h = pynvml.nvmlDeviceGetHandleByIndex(i)
                         d["nvidia"]["handles"].append(h)

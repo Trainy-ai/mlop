@@ -19,7 +19,6 @@ from .api import (
     make_compat_webhook_v1,
 )
 from .auth import login
-from .compat.torch import _watch_torch
 from .data import Data
 from .file import Artifact, Audio, File, Image, Text, Video
 from .iface import ServerInterface
@@ -204,9 +203,16 @@ class Op:
         ]  # TODO: make more efficient
 
     def watch(self, module, **kwargs):
+        from .compat.torch import _watch_torch
+
         if any(
             b.__module__.startswith(
-                ("torch.nn", "lightning.pytorch", "pytorch_lightning.core.module", "transformers.models")
+                (
+                    "torch.nn",
+                    "lightning.pytorch",
+                    "pytorch_lightning.core.module",
+                    "transformers.models",
+                )
             )
             for b in module.__class__.__bases__
         ):
@@ -229,7 +235,7 @@ class Op:
         message = kwargs.get("text", message)
         wait = kwargs.get("wait_duration", wait)
         kwargs["email"] = kwargs.get("email", True)
-        
+
         url = url or self.settings.url_webhook or None
 
         t = time.time()
@@ -347,6 +353,7 @@ class Op:
             if len(v.shape) == 0:
                 n[k] = v.item()
             else:
+                n[k] = 0  # TODO: attempt to parse tensor
                 logger.warning(f"{tag}: unsupported tensor shape {v.shape}")
         else:
             logger.warning(f"{tag}: unsupported type {type(v)}")
