@@ -11,7 +11,6 @@ authors = [
     "asaiacai"
 ]
 readme = "README.md"
-license-files = [ "LICENSE" ]
 
 [build-system]
 requires = ["poetry-core>=1.7.0"]
@@ -30,7 +29,7 @@ rich = ">=13.0"
 soundfile = ">=0.12"
 
 
-[tool.poetry.optional-dependencies]
+[tool.poetry.extras]
 full = [
   "pynvml",
 ]
