@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import mlop
 
@@ -8,7 +8,7 @@ from .sets import Settings, setup
 from .util import gen_id, get_char
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
-tag = "Init"
+tag = 'Init'
 
 
 class OpInit:
@@ -27,16 +27,15 @@ class OpInit:
 
 
 def init(
-    dir: Union[str, None] = None,
-    project: Union[str, None] = None,
-    name: Union[str, None] = None,
-    # id: str | None = None,
+    dir: Optional[str] = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
     config: Union[dict, str, None] = None,
-    settings: Union[Settings, Dict[str, Any], None] = dict(),
+    settings: Union[Settings, Dict[str, Any], None] = None,
     **kwargs,
 ) -> Op:
     # TODO: remove legacy compat
-    dir = kwargs.get("save_dir", dir)
+    dir = kwargs.get('save_dir', dir)
 
     settings = setup(settings)
     settings.dir = dir if dir else settings.dir
@@ -47,18 +46,18 @@ def init(
     # settings._op_id = id if id else gen_id(seed=settings.project)
 
     try:
-        op = OpInit(config=config)
-        op.setup(settings=settings)
-        op = op.init()
-        return op
+        op_init = OpInit(config=config)
+        op_init.setup(settings=settings)
+        return op_init.init()
     except Exception as e:
-        logger.critical("%s: failed, %s", tag, e)  # add early logger
+        logger.critical('%s: failed, %s', tag, e)  # add early logger
         raise e
 
 
-def finish(op: Union[Op, None] = None) -> None:
+def finish(op: Optional[Op] = None) -> None:
     if op:
         op.finish()
     else:
-        for op in mlop.ops:
-            op.finish()
+        if mlop.ops:
+            for existing_op in mlop.ops:
+                existing_op.finish()

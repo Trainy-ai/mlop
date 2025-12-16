@@ -1,5 +1,6 @@
 import os
 import subprocess
+from typing import Any, Callable, List, Optional
 
 from .auth import login, logout
 from .data import Data, Graph, Histogram, Table
@@ -8,36 +9,40 @@ from .init import finish, init
 from .sets import Settings, setup
 from .sys import System
 
-_hooks = []
-ops, log, watch, alert = None, None, None, None
+_hooks: List[Any] = []
+ops: Optional[List[Any]] = None
+log: Optional[Callable[..., Any]] = None
+watch: Optional[Callable[..., Any]] = None
+alert: Optional[Callable[..., Any]] = None
 
 __all__ = (
-    "Data",
-    "Graph",
-    "Histogram",
-    "Table",
-    "File",
-    "Artifact",
-    "Text",
-    "Image",
-    "Audio",
-    "Video",
-    "System",
-    "Settings",
-    "alert",
-    "init",
-    "login",
-    "logout",
-    "watch",
-    "finish",
-    "setup",
+    'Data',
+    'Graph',
+    'Histogram',
+    'Table',
+    'File',
+    'Artifact',
+    'Text',
+    'Image',
+    'Audio',
+    'Video',
+    'System',
+    'Settings',
+    'alert',
+    'init',
+    'login',
+    'logout',
+    'watch',
+    'finish',
+    'setup',
 )
 
-__version__ = "0.0.2"
+__version__ = '0.0.2'
 
 
 # Replaced with the current commit when building the wheels.
 _MLOP_COMMIT_SHA = '{{MLOP_COMMIT_SHA}}'
+
 
 def _get_git_commit():
     if 'MLOP_COMMIT_SHA' not in _MLOP_COMMIT_SHA:
@@ -66,4 +71,3 @@ def _get_git_commit():
         return commit_hash
     except Exception:  # pylint: disable=broad-except
         return _MLOP_COMMIT_SHA
-

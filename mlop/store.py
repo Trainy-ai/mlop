@@ -3,32 +3,41 @@ import queue
 import sqlite3
 import threading
 import time
+from typing import Any, Dict, List, Optional, Tuple
 
 from .sets import Settings
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
-tag = "Store"
+tag = 'Store'
 
 
 class DataStore:
     def __init__(self, config: dict, settings: Settings) -> None:
         self.settings = settings
 
-        self.db = f"{settings.get_dir()}/{settings.store_db}"
+        self.db = f'{settings.get_dir()}/{settings.store_db}'
 
         self.conn = sqlite3.connect(
             self.db, check_same_thread=False
         )  # isolation_level=None
-        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute('PRAGMA journal_mode=WAL;')
         self.cursor = self.conn.cursor()
 
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
-        self._queue = queue.Queue()
-        self._thread = None
+        self._queue: queue.Queue[
+            Tuple[
+                Optional[Dict[str, Any]],
+                Optional[Dict[str, Any]],
+                Optional[Dict[str, Any]],
+                Optional[float],
+                Optional[int],
+            ]
+        ] = queue.Queue()
+        self._thread: Optional[threading.Thread] = None
         self.start()
 
-    def start(self):
+    def start(self) -> None:
         if self._thread is None:
             self._thread = threading.Thread(target=self._worker, daemon=True)
             self._thread.start()
@@ -53,10 +62,17 @@ class DataStore:
         """)
         self.conn.commit()
 
-    def insert(self, num=None, data=None, file=None, timestamp=None, step=None):
+    def insert(
+        self,
+        num: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        file: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[float] = None,
+        step: Optional[int] = None,
+    ) -> None:
         self._queue.put((num, data, file, timestamp, step))
 
-    def stop(self):
+    def stop(self) -> None:
         while not self._queue.empty():
             pass
         self._stop_event.set()
@@ -65,11 +81,12 @@ class DataStore:
             self._thread = None
         self.conn.commit()
         self.conn.close()
-        logger.info(f"{tag}: find saved database at {self.db}")
+        logger.info(f'{tag}: find saved database at {self.db}')
 
-    def _worker(self):
+    def _worker(self) -> None:
         while not self._stop_event.is_set():
-            batch_num, batch_file = [], []
+            batch_num: List[Dict[str, Any]] = []
+            batch_file: List[Dict[str, Any]] = []
             start = time.time()
             while (
                 time.time() - start < self.settings.store_aggregate_interval
@@ -87,50 +104,54 @@ class DataStore:
                     if n != {}:
                         batch_num.append(
                             {
-                                "t": t,
-                                "s": s,
-                                "n": n,
+                                't': t,
+                                's': s,
+                                'n': n,
                             }
                         )
                     if f != {}:
                         batch_file.append(
                             {
-                                "t": t,
-                                "s": s,
-                                "f": f,
+                                't': t,
+                                's': s,
+                                'f': f,
                             }
                         )
                 except queue.Empty:
                     continue
             self._insert(batch_num, batch_file)
 
-    def _insert(self, d, f):
+    def _insert(self, d: List[Dict[str, Any]], f: List[Dict[str, Any]]) -> None:
         with self._lock:
-            self.conn.execute("BEGIN")
+            self.conn.execute('BEGIN')
             try:
                 if d != []:
                     self.cursor.executemany(
                         f"""
-                        INSERT INTO {self.settings.store_table_num} (time, step, key, value) VALUES (?, ?, ?, ?)
+                        INSERT INTO {self.settings.store_table_num}
+                        (time, step, key, value)
+                        VALUES (?, ?, ?, ?)
                         """,
-                        [(e["t"], e["s"], k, v) for e in d for k, v in e["n"].items()],
+                        [(e['t'], e['s'], k, v) for e in d for k, v in e['n'].items()],
                     )
-                    logger.info(f"{tag}: inserted {len(d)} line(s)")
+                    logger.info(f'{tag}: inserted {len(d)} line(s)')
                 if f != []:
                     self.cursor.executemany(
                         f"""
-                        INSERT INTO {self.settings.store_table_file} (time, step, name, aid) VALUES (?, ?, ?, ?)
+                        INSERT INTO {self.settings.store_table_file}
+                        (time, step, name, aid)
+                        VALUES (?, ?, ?, ?)
                         """,
                         [
-                            (e["t"], e["s"], f"{fe._name}{fe._ext}", fe._id)
+                            (e['t'], e['s'], f'{fe._name}{fe._ext}', fe._id)
                             for e in f
                             # for fe in e["f"].values()
-                            for fel in e["f"].values()
+                            for fel in e['f'].values()
                             for fe in fel
                         ],
                     )
-                    logger.info(f"{tag}: inserted {len(f)} file(s)")
+                    logger.info(f'{tag}: inserted {len(f)} file(s)')
                 self.conn.commit()
             except Exception as e:
                 self.conn.rollback()
-                logger.error("%s: failed to insert batch: %s", tag, e)
+                logger.error('%s: failed to insert batch: %s', tag, e)
