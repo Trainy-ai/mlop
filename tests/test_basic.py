@@ -1,5 +1,6 @@
 import importlib.util
 
+import httpx
 import pytest
 from PIL import Image as PILImage
 
@@ -120,3 +121,18 @@ def test_video_logging_from_numpy_array():
     video = mlop.Video(video_array, rate=5, caption='video-numpy')
     _log_video(video, 'video/numpy', get_task_name())
 
+
+def test_audio_logging_from_downloaded_file(tmp_path):
+    url = 'https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg'
+    audio_path = tmp_path / 'test.ogg'
+    try:
+        response = httpx.get(url, timeout=10)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:  # pragma: no cover - network issues
+        pytest.skip(f'Audio download failed: {exc}')
+
+    audio_path.write_bytes(response.content)
+    audio = mlop.Audio(str(audio_path))
+    run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name(), config={})
+    run.log({'audio': audio})
+    run.finish()
