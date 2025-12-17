@@ -33,6 +33,7 @@ jobs:
         run: |
           set -euox pipefail
           pip install -e ".[full]"
+          poetry install --with dev
           mlop login ${{ secrets.MLOP_API_TOKEN }}
 
       - name: Run pytest smoke tests
@@ -64,6 +65,7 @@ jobs:
         run: |
           set -euox pipefail
           pip install -e ".[full]"
+          poetry install --with dev
           mlop login "${MLOP_API_TOKEN}"
 
       - name: Run DDP watch tests
