@@ -1,3 +1,4 @@
+import importlib.util
 import os
 
 import pytest
@@ -18,7 +19,7 @@ except ImportError:  # pragma: no cover - optional dependency
 import numpy as np
 
 import mlop
-from tests.utils import get_task_name
+from tests.utils import get_task_name, init_run, test_id
 
 try:
     import torch
@@ -28,6 +29,10 @@ except ImportError:  # pragma: no cover - optional dependency
     torch = None
     HAS_TORCH = False
 
+HAS_IMAGEIO = importlib.util.find_spec('imageio') is not None
+HAS_MOVIEPY = importlib.util.find_spec('moviepy') is not None
+HAS_VIDEO_DEPS = HAS_IMAGEIO and HAS_MOVIEPY
+
 TESTING_PROJECT_NAME = 'testing-ci'
 
 
@@ -36,7 +41,7 @@ def test_quickstart():
     config = {'lr': 0.001, 'epochs': 100}
     run = mlop.init(project=TESTING_PROJECT_NAME, name=task_name, config=config)
     for i in range(config['epochs']):
-        run.log({'val/loss': 0})
+        run.log({f'val/loss': 0})
         run.log({'val/x': i})
     run.finish()
 
@@ -52,11 +57,20 @@ def test_init_with_hyperparameters():
 
 
 def _log_and_assert_image(image, key, task_name):
-    run = mlop.init(TESTING_PROJECT_NAME, task_name, config={})
+    run = init_run(TESTING_PROJECT_NAME, task_name, config={})
     run.log({key: image})
     assert key in run.settings.meta
     assert image._path is not None
     assert os.path.exists(image._path)
+    run.finish()
+
+
+def _log_and_assert_video(video, key, task_name):
+    run = init_run(TESTING_PROJECT_NAME, task_name, config={})
+    run.log({key: video})
+    assert key in run.settings.meta
+    assert video._path is not None
+    assert os.path.exists(video._path)
     run.finish()
 
 
@@ -97,3 +111,17 @@ def test_image_logging_from_torch_tensor():
     tensor = torch.rand(3, 4, 4)
     image = mlop.Image(tensor, caption='torch-tensor')
     _log_and_assert_image(image, 'image/torch', get_task_name())
+
+
+def test_video_logging_from_file_path(tmp_path):
+    video_path = tmp_path / 'sample.mp4'
+    video_path.write_bytes(b'\x00')
+    video = mlop.Video(str(video_path), caption='video-file')
+    _log_and_assert_video(video, 'video/file/path', get_task_name())
+
+
+@pytest.mark.skipif(not HAS_VIDEO_DEPS, reason='video dependencies not installed')
+def test_video_logging_from_numpy_array():
+    video_array = np.random.randint(0, 255, (2, 3, 4, 4), dtype=np.uint8)
+    video = mlop.Video(video_array, rate=5, caption='video-numpy')
+    _log_and_assert_video(video, 'video/numpy', get_task_name())

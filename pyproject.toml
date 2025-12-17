@@ -17,7 +17,7 @@ requires = ["poetry-core>=1.7.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 GitPython = ">=3.1"
 httpx = { extras = ["http2"], version = ">=0.24" }
 keyring = ">=24.0"
@@ -36,6 +36,12 @@ pytest-xdist = "^3.6.1"
 types-colorama = "^0.4.15.20240311"
 types-requests = "<2.31.0.7"
 types-pyyaml = "^6.0.12.20241230"
+
+# only needed for testing
+numpy = "^2.0"
+torch = "*"
+matplotlib = "^3.10"
+pillow = ">=10.0"
 
 
 [tool.poetry.extras]
