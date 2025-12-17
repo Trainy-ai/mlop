@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euox pipefail
           pip install -e ".[full]"
-          mlop login ${{ secrets.MLOP_API_KEY }}
+          mlop login ${{ secrets.MLOP_API_TOKEN }}
 
       - name: Run pytest smoke tests
         run: |
