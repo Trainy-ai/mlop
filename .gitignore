@@ -14,3 +14,4 @@ build/
 .mlop
 .obsidian
 scripts/.*
+.vscode
