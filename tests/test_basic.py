@@ -136,3 +136,12 @@ def test_audio_logging_from_downloaded_file(tmp_path):
     run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name(), config={})
     run.log({'audio': audio})
     run.finish()
+
+
+def test_histogram_logging_from_numpy_array():
+    data = np.random.normal(loc=0.0, scale=1.0, size=1000)
+    histogram = mlop.Histogram(data=data, bins=32)
+    run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name(), config={})
+    run.log({'metrics/histogram': histogram})
+    assert histogram.to_dict()['shape'] == 'uniform'
+    run.finish()
