@@ -264,7 +264,9 @@ def test_mlop_watch_on_ddp_model():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            run.log({f'rank.{rank}/ddp/loss': loss.item(), f'rank.{rank}/ddp/step': step})
+            run.log(
+                {f'rank.{rank}/ddp/loss': loss.item(), f'rank.{rank}/ddp/step': step}
+            )
         if dist.is_initialized():
             dist.barrier()
     finally:
