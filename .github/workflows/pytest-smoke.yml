@@ -32,8 +32,7 @@ jobs:
       - name: login
         run: |
           set -euox pipefail
-          pip install -e ".[full]"
-          poetry install --with dev
+          poetry install --with dev --extras full
           mlop login ${{ secrets.MLOP_API_TOKEN }}
 
       - name: Run pytest smoke tests
@@ -64,8 +63,7 @@ jobs:
           MLOP_API_TOKEN: ${{ secrets.MLOP_API_TOKEN }}
         run: |
           set -euox pipefail
-          pip install -e ".[full]"
-          poetry install --with dev
+          poetry install --with dev --extras full
           mlop login "${MLOP_API_TOKEN}"
 
       - name: Run DDP watch tests
@@ -73,7 +71,8 @@ jobs:
           set -euox pipefail
           poetry run torchrun --standalone --nproc-per-node=2 -m pytest tests/test_pytorch.py -k test_mlop_watch_on_ddp_model -m distributed -rs
 
-      - name: Run FSDP watch tests
-        run: |
-          set -euox pipefail
-          poetry run torchrun --standalone --nproc-per-node=2 -m pytest tests/test_pytorch.py -k test_mlop_watch_on_fsdp_model -m distributed -rs
+      # TODO(asaiacai): FSDP requires GPU to test
+      # - name: Run FSDP watch tests
+      #   run: |
+      #     set -euox pipefail
+      #     poetry run torchrun --standalone --nproc-per-node=2 -m pytest tests/test_pytorch.py -k test_mlop_watch_on_fsdp_model -m distributed -rs
