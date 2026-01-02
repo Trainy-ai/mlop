@@ -32,8 +32,7 @@ Hard Requirements:
 
 import logging
 import os
-import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 _original_neptune_run = None
@@ -77,6 +76,7 @@ def _safe_import_mlop():
     """
     try:
         import mlop
+
         return mlop
     except ImportError:
         logger.warning(
@@ -118,7 +118,10 @@ def _convert_neptune_file_to_mlop(file_obj, mlop_module):
     # Try to infer from file path
     if isinstance(source, (str, os.PathLike)):
         source_str = str(source).lower()
-        if any(source_str.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']):
+        if any(
+            source_str.endswith(ext)
+            for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']
+        ):
             return mlop_module.Image(source)
         elif any(source_str.endswith(ext) for ext in ['.wav', '.mp3', '.ogg', '.flac']):
             return mlop_module.Audio(source)
@@ -142,12 +145,24 @@ def _convert_neptune_histogram_to_mlop(hist_obj, mlop_module):
     """
     if hasattr(hist_obj, 'bin_edges') and hasattr(hist_obj, 'counts'):
         # Neptune Histogram has bin_edges and counts/densities
-        bin_edges = hist_obj.bin_edges_as_list() if hasattr(hist_obj, 'bin_edges_as_list') else list(hist_obj.bin_edges)
+        bin_edges = (
+            hist_obj.bin_edges_as_list()
+            if hasattr(hist_obj, 'bin_edges_as_list')
+            else list(hist_obj.bin_edges)
+        )
 
         if hasattr(hist_obj, 'counts') and hist_obj.counts is not None:
-            counts = hist_obj.counts_as_list() if hasattr(hist_obj, 'counts_as_list') else list(hist_obj.counts)
+            counts = (
+                hist_obj.counts_as_list()
+                if hasattr(hist_obj, 'counts_as_list')
+                else list(hist_obj.counts)
+            )
         elif hasattr(hist_obj, 'densities') and hist_obj.densities is not None:
-            counts = hist_obj.densities_as_list() if hasattr(hist_obj, 'densities_as_list') else list(hist_obj.densities)
+            counts = (
+                hist_obj.densities_as_list()
+                if hasattr(hist_obj, 'densities_as_list')
+                else list(hist_obj.densities)
+            )
         else:
             counts = None
 
@@ -175,8 +190,11 @@ class NeptuneRunWrapper:
         Neptune args/kwargs are passed through unchanged.
         mlop is configured via environment variables.
         """
-        # Import neptune_scale to get the original Run class
+        # Use the saved original Run class (not the wrapper!)
+        global _original_neptune_run
         try:
+            if _original_neptune_run is None:
+                raise RuntimeError('Neptune monkeypatch not applied correctly')
             self._neptune_run = _original_neptune_run(*args, **kwargs)
         except Exception as e:
             # If Neptune itself fails, we can't do anything
@@ -206,7 +224,9 @@ class NeptuneRunWrapper:
             # Build mlop init parameters
             mlop_init_kwargs = {
                 'project': mlop_config['project'],
-                'name': experiment_name if not run_id else f'{experiment_name}-{run_id}',
+                'name': experiment_name
+                if not run_id
+                else f'{experiment_name}-{run_id}',
                 'config': {},  # Will be populated by log_configs()
             }
 
@@ -219,13 +239,12 @@ class NeptuneRunWrapper:
             if 'url_ingest' in mlop_config:
                 settings['url_ingest'] = mlop_config['url_ingest']
 
+            # If API key provided via env var, pass it directly to settings
+            if 'api_key' in mlop_config:
+                settings['_auth'] = mlop_config['api_key']
+
             if settings:
                 mlop_init_kwargs['settings'] = settings
-
-            # Set API key if provided via env var
-            if 'api_key' in mlop_config:
-                # Store in environment for mlop.init() to pick up
-                os.environ['MLOP_API_KEY'] = mlop_config['api_key']
 
             # Initialize mlop run
             self._mlop_run = self._mlop.init(**mlop_init_kwargs)
@@ -249,7 +268,9 @@ class NeptuneRunWrapper:
         by calling log() multiple times if needed.
         """
         # Always call Neptune first
-        result = self._neptune_run.log_metrics(data=data, step=step, timestamp=timestamp, **kwargs)
+        result = self._neptune_run.log_metrics(
+            data=data, step=step, timestamp=timestamp, **kwargs
+        )
 
         # Try to log to mlop
         if self._mlop_run:
@@ -308,12 +329,16 @@ class NeptuneRunWrapper:
                         mlop_file = _convert_neptune_file_to_mlop(file_obj, self._mlop)
                         mlop_files[key] = mlop_file
                     except Exception as e:
-                        logger.debug(f'mlop.compat.neptune: Failed to convert file {key}: {e}')
+                        logger.debug(
+                            f'mlop.compat.neptune: Failed to convert file {key}: {e}'
+                        )
 
                 if mlop_files:
                     self._mlop_run.log(mlop_files)
             except Exception as e:
-                logger.debug(f'mlop.compat.neptune: Failed to assign files to mlop: {e}')
+                logger.debug(
+                    f'mlop.compat.neptune: Failed to assign files to mlop: {e}'
+                )
 
         return result
 
@@ -322,7 +347,9 @@ class NeptuneRunWrapper:
         Log files as a series to both Neptune and mlop.
         """
         # Always call Neptune first
-        result = self._neptune_run.log_files(files=files, step=step, timestamp=timestamp, **kwargs)
+        result = self._neptune_run.log_files(
+            files=files, step=step, timestamp=timestamp, **kwargs
+        )
 
         # Try to log to mlop
         if self._mlop_run and self._mlop:
@@ -333,7 +360,9 @@ class NeptuneRunWrapper:
                         mlop_file = _convert_neptune_file_to_mlop(file_obj, self._mlop)
                         mlop_files[key] = mlop_file
                     except Exception as e:
-                        logger.debug(f'mlop.compat.neptune: Failed to convert file {key}: {e}')
+                        logger.debug(
+                            f'mlop.compat.neptune: Failed to convert file {key}: {e}'
+                        )
 
                 if mlop_files:
                     self._mlop_run.log(mlop_files)
@@ -342,7 +371,9 @@ class NeptuneRunWrapper:
 
         return result
 
-    def log_histograms(self, histograms: Dict[str, Any], step: int, timestamp=None, **kwargs):
+    def log_histograms(
+        self, histograms: Dict[str, Any], step: int, timestamp=None, **kwargs
+    ):
         """
         Log histograms to both Neptune and mlop.
         """
@@ -357,15 +388,22 @@ class NeptuneRunWrapper:
                 mlop_histograms = {}
                 for key, hist_obj in histograms.items():
                     try:
-                        mlop_hist = _convert_neptune_histogram_to_mlop(hist_obj, self._mlop)
+                        mlop_hist = _convert_neptune_histogram_to_mlop(
+                            hist_obj, self._mlop
+                        )
                         mlop_histograms[key] = mlop_hist
                     except Exception as e:
-                        logger.debug(f'mlop.compat.neptune: Failed to convert histogram {key}: {e}')
+                        logger.debug(
+                            f'mlop.compat.neptune: Failed to convert '
+                            f'histogram {key}: {e}'
+                        )
 
                 if mlop_histograms:
                     self._mlop_run.log(mlop_histograms)
             except Exception as e:
-                logger.debug(f'mlop.compat.neptune: Failed to log histograms to mlop: {e}')
+                logger.debug(
+                    f'mlop.compat.neptune: Failed to log histograms to mlop: {e}'
+                )
 
         return result
 
@@ -383,14 +421,18 @@ class NeptuneRunWrapper:
             try:
                 # Log tags as a special metric
                 tags_str = ','.join(tags)
-                logger.debug(f'mlop.compat.neptune: Tags added (Neptune only): {tags_str}')
+                logger.debug(
+                    f'mlop.compat.neptune: Tags added (Neptune only): {tags_str}'
+                )
                 # Could store in config if needed
                 if hasattr(self._mlop_run, 'config'):
                     if 'tags' not in self._mlop_run.config:
                         self._mlop_run.config['tags'] = []
                     self._mlop_run.config['tags'].extend(tags)
             except Exception as e:
-                logger.debug(f'mlop.compat.neptune: Failed to add tags to mlop: {e}')
+                logger.debug(
+                    f'mlop.compat.neptune: Failed to add tags to mlop: {e}'
+                )
 
         return result
 
@@ -400,12 +442,17 @@ class NeptuneRunWrapper:
 
         if self._mlop_run:
             try:
-                if hasattr(self._mlop_run, 'config') and 'tags' in self._mlop_run.config:
+                if (
+                    hasattr(self._mlop_run, 'config')
+                    and 'tags' in self._mlop_run.config
+                ):
                     for tag in tags:
                         if tag in self._mlop_run.config['tags']:
                             self._mlop_run.config['tags'].remove(tag)
             except Exception as e:
-                logger.debug(f'mlop.compat.neptune: Failed to remove tags from mlop: {e}')
+                logger.debug(
+                    f'mlop.compat.neptune: Failed to remove tags from mlop: {e}'
+                )
 
         return result
 
@@ -449,25 +496,34 @@ class NeptuneRunWrapper:
         """Get Neptune experiment URL."""
         return self._neptune_run.get_experiment_url()
 
-    def log_string_series(self, data: Dict[str, str], step: int, timestamp=None, **kwargs):
+    def log_string_series(
+        self, data: Dict[str, str], step: int, timestamp=None, **kwargs
+    ):
         """Log string series to Neptune (mlop doesn't support this directly)."""
         result = self._neptune_run.log_string_series(
             data=data, step=step, timestamp=timestamp, **kwargs
         )
 
         # mlop doesn't have string series support, skip silently
-        logger.debug(f'mlop.compat.neptune: String series not supported in mlop, logged to Neptune only')
+        logger.debug(
+            'mlop.compat.neptune: String series not supported in mlop, '
+            'logged to Neptune only'
+        )
 
         return result
 
     @staticmethod
-    def _flatten_dict(d: Dict[str, Any], parent_key: str = '', sep: str = '/') -> Dict[str, Any]:
+    def _flatten_dict(
+        d: Dict[str, Any], parent_key: str = '', sep: str = '/'
+    ) -> Dict[str, Any]:
         """Flatten nested dictionary for logging."""
         items = []
         for k, v in d.items():
             new_key = f'{parent_key}{sep}{k}' if parent_key else k
             if isinstance(v, dict):
-                items.extend(NeptuneRunWrapper._flatten_dict(v, new_key, sep=sep).items())
+                items.extend(
+                    NeptuneRunWrapper._flatten_dict(v, new_key, sep=sep).items()
+                )
             else:
                 items.append((new_key, v))
         return dict(items)
@@ -490,8 +546,10 @@ class NeptuneRunWrapper:
         if self._mlop_run:
             try:
                 self._mlop_run.finish()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    f'mlop.compat.neptune: Failed to close mlop run on exit: {e}'
+                )
         return self._neptune_run.__exit__(exc_type, exc_val, exc_tb)
 
 
@@ -544,6 +602,7 @@ def restore_neptune():
 
     try:
         import neptune_scale
+
         if _original_neptune_run:
             neptune_scale.Run = _original_neptune_run
             _patch_applied = False

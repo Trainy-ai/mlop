@@ -74,4 +74,5 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 markers = [
     "distributed: tests that require multi-rank torch.distributed setup",
+    "neptune: tests that require real Neptune API credentials",
 ]

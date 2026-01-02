@@ -253,7 +253,7 @@ EOF
     if command_exists pytest; then
         if [ -f "tests/test_neptune_compat.py" ]; then
             print_info "Running Neptune compatibility test suite..."
-            if pytest tests/test_neptune_compat.py::TestNeptuneCompatBasic -v --tb=short; then
+            if pytest tests/test_neptune_compat.py -v --tb=short; then
                 print_success "Neptune compatibility tests passed"
             else
                 print_warning "Some compatibility tests failed (check output above)"

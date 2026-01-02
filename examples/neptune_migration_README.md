@@ -332,12 +332,13 @@ A: You can continue using the compat layer, or migrate to mlop API directly.
 
 ## Support
 
-- **Issues**: https://github.com/your-org/mlop/issues
-- **Docs**: https://docs.mlop.yourcompany.com
-- **Slack**: #mlop-support
+- **Issues**: https://github.com/Trainy-ai/mlop/issues
+- **Documentation**: See `NEPTUNE_MIGRATION.md` and inline code documentation
+- **Questions**: File a GitHub issue with the `[neptune-compat]` tag
 
 ## See Also
 
-- [mlop Documentation](https://docs.mlop.yourcompany.com)
-- [Neptune Migration Examples](./neptune_migration_example.py)
-- [Test Suite](../tests/test_neptune_compat.py)
+- [Main Migration Guide](../NEPTUNE_MIGRATION.md) - Comprehensive documentation
+- [Migration Examples](./neptune_migration_example.py) - Code examples
+- [Test Suite](../tests/test_neptune_compat.py) - Compatibility tests
+- [Test Script](../scripts/test_neptune_migration.sh) - Validation tool

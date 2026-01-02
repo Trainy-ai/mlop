@@ -576,3 +576,31 @@ A: Run `./scripts/test_neptune_migration.sh` or check both UIs for your experime
 ---
 
 **Questions or Issues?** File a GitHub issue or contact the MLOps team.
+
+## Testing with Real Neptune
+
+The test suite includes integration tests that validate the monkeypatch works with the actual Neptune client. These tests are skipped by default but can be enabled by setting Neptune credentials:
+
+```bash
+# Set Neptune credentials
+export NEPTUNE_API_TOKEN="your-neptune-token"
+export NEPTUNE_PROJECT="workspace/project"
+
+# Run Neptune integration tests
+pytest tests/test_neptune_compat.py::TestNeptuneRealBackend -v
+
+# Test Neptune-only (no dual-logging)
+pytest tests/test_neptune_compat.py::TestNeptuneRealBackend::test_real_neptune_without_mlop -v
+
+# Test full dual-logging (requires both Neptune and mlop credentials)
+export MLOP_PROJECT="your-mlop-project"
+pytest tests/test_neptune_compat.py::TestNeptuneRealBackend::test_real_neptune_with_mlop_dual_logging -v
+```
+
+These tests will:
+- Create real runs in your Neptune workspace
+- Validate that the monkeypatch correctly forwards calls to Neptune
+- Test dual-logging to both Neptune and mlop (if configured)
+- Verify error resilience (Neptune works even if mlop fails)
+
+**Note**: These tests create actual Neptune runs in your workspace. They are tagged with `real-neptune-test` and `dual-logging-test` for easy identification and cleanup.
