@@ -676,9 +676,9 @@ class TestNeptuneRealBackend:
                 # Create unique test image for each step (different colors)
                 # Use step-based color to make images visually distinct
                 base_color = [
-                    (255, 0, 0),    # Red for step 0
-                    (0, 255, 0),    # Green for step 1
-                    (0, 0, 255),    # Blue for step 2
+                    (255, 0, 0),  # Red for step 0
+                    (0, 255, 0),  # Green for step 1
+                    (0, 0, 255),  # Blue for step 2
                 ][img_step]
 
                 test_image = np.zeros((64, 64, 3), dtype=np.uint8)
