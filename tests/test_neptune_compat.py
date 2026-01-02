@@ -569,7 +569,7 @@ class TestNeptuneRealBackend:
         or not os.environ.get('NEPTUNE_PROJECT'),
         reason='Requires NEPTUNE_API_TOKEN and NEPTUNE_PROJECT env vars',
     )
-    def test_real_neptune_without_mlop(self, clean_env):
+    def test_real_neptune_without_mlop(self, clean_env, tmp_path):
         """
         Test with real Neptune backend, no mlop dual-logging.
 
@@ -578,6 +578,7 @@ class TestNeptuneRealBackend:
         # Ensure mlop is NOT configured
         assert 'MLOP_PROJECT' not in os.environ
 
+        import numpy as np
         from neptune_scale import Run
 
         task_name = get_task_name()
@@ -588,7 +589,23 @@ class TestNeptuneRealBackend:
         # Log to real Neptune
         run.log_configs({'test': 'real-neptune', 'mode': 'neptune-only'})
         run.log_metrics({'test/metric': 1.0}, step=0)
-        run.add_tags(['real-neptune-test'])
+
+        # Log test image to Neptune
+        try:
+            from PIL import Image
+
+            # Create simple test image
+            test_image = np.random.randint(0, 255, (32, 32, 3), dtype=np.uint8)
+            img_path = tmp_path / 'neptune_only_test.png'
+            Image.fromarray(test_image).save(img_path)
+
+            # Log image to Neptune
+            run.assign_files({'neptune_test_image': NeptuneFile(str(img_path))})
+            print('  ✓ Image logged to Neptune')
+        except ImportError:
+            print('  ⚠ PIL not available, skipping image logging')
+
+        run.add_tags(['real-neptune-test', 'neptune-only'])
 
         # Should have no mlop run
         assert run._mlop_run is None
@@ -607,13 +624,14 @@ class TestNeptuneRealBackend:
         or not os.environ.get('MLOP_PROJECT'),
         reason='Requires NEPTUNE_API_TOKEN, NEPTUNE_PROJECT, and MLOP_PROJECT',
     )
-    def test_real_neptune_with_mlop_dual_logging(self):
+    def test_real_neptune_with_mlop_dual_logging(self, tmp_path):
         """
         Full integration test with BOTH real Neptune and real mlop.
 
         This is the ultimate validation that dual-logging works in production.
         Requires both Neptune and mlop credentials.
         """
+        import numpy as np
         from neptune_scale import Run
 
         task_name = get_task_name()
@@ -635,7 +653,28 @@ class TestNeptuneRealBackend:
                 step=step,
             )
 
-        run.add_tags(['dual-logging-test', 'production'])
+        # Create and log test images
+        # Create a simple test image (32x32 RGB)
+        test_image = np.random.randint(0, 255, (32, 32, 3), dtype=np.uint8)
+        img_path = tmp_path / 'test_image.png'
+
+        # Save image using PIL
+        try:
+            from PIL import Image
+
+            Image.fromarray(test_image).save(img_path)
+
+            # Log image using Neptune File object
+            run.assign_files({'test_image': NeptuneFile(str(img_path))})
+
+            # Log image at specific step
+            run.log_files({'step_image': NeptuneFile(str(img_path))}, step=1)
+
+            print('  ✓ Images logged to both Neptune and mlop')
+        except ImportError:
+            print('  ⚠ PIL not available, skipping image logging')
+
+        run.add_tags(['dual-logging-test', 'production', 'with-images'])
 
         # Both runs should be active
         assert run._neptune_run is not None
