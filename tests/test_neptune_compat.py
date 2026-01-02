@@ -648,9 +648,9 @@ class TestNeptuneRealBackend:
         neptune_url = run.get_run_url()
         assert 'neptune.ai' in neptune_url
 
-        print(f'✓ Full dual-logging test passed!')
+        print('✓ Full dual-logging test passed!')
         print(f'  Neptune: {neptune_url}')
-        print(f'  mlop run successfully logged')
+        print('  mlop run successfully logged')
 
     @pytest.mark.skipif(
         not os.environ.get('NEPTUNE_API_TOKEN')
@@ -670,7 +670,7 @@ class TestNeptuneRealBackend:
         # Neptune should be closed automatically
         url = run.get_run_url()
         assert 'neptune.ai' in url
-        print(f'✓ Real Neptune context manager test passed')
+        print('✓ Real Neptune context manager test passed')
 
     @pytest.mark.skipif(
         not os.environ.get('NEPTUNE_API_TOKEN')
@@ -707,4 +707,4 @@ class TestNeptuneRealBackend:
 
         url = run.get_run_url()
         assert 'neptune.ai' in url
-        print(f'✓ Resilience test passed - Neptune worked despite mlop failure')
+        print('✓ Resilience test passed - Neptune worked despite mlop failure')
