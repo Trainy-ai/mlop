@@ -35,6 +35,7 @@ Once you've migrated fully to mlop, you can:
 ## Example Training Script (Before Migration)
 """
 
+
 # Original Neptune training script (unchanged during transition)
 def original_neptune_training_script():
     """
@@ -50,13 +51,15 @@ def original_neptune_training_script():
     )
 
     # Log hyperparameters
-    run.log_configs({
-        'learning_rate': 0.001,
-        'batch_size': 32,
-        'epochs': 100,
-        'model': 'resnet50',
-        'optimizer': 'adam',
-    })
+    run.log_configs(
+        {
+            'learning_rate': 0.001,
+            'batch_size': 32,
+            'epochs': 100,
+            'model': 'resnet50',
+            'optimizer': 'adam',
+        }
+    )
 
     # Add tags
     run.add_tags(['baseline', 'experiment-v1'])
@@ -68,20 +71,26 @@ def original_neptune_training_script():
         train_acc = min(0.99, epoch / 100)
 
         # Log metrics
-        run.log_metrics({
-            'train/loss': train_loss,
-            'train/accuracy': train_acc,
-        }, step=epoch)
+        run.log_metrics(
+            {
+                'train/loss': train_loss,
+                'train/accuracy': train_acc,
+            },
+            step=epoch,
+        )
 
         # Validation step
         if epoch % 10 == 0:
             val_loss = train_loss * 1.1
             val_acc = train_acc * 0.95
 
-            run.log_metrics({
-                'val/loss': val_loss,
-                'val/accuracy': val_acc,
-            }, step=epoch)
+            run.log_metrics(
+                {
+                    'val/loss': val_loss,
+                    'val/accuracy': val_acc,
+                },
+                step=epoch,
+            )
 
     # Close the run
     run.close()
@@ -106,13 +115,15 @@ def migrated_dual_logging_script():
         project='my-team/my-project',
     )
 
-    run.log_configs({
-        'learning_rate': 0.001,
-        'batch_size': 32,
-        'epochs': 100,
-        'model': 'resnet50',
-        'optimizer': 'adam',
-    })
+    run.log_configs(
+        {
+            'learning_rate': 0.001,
+            'batch_size': 32,
+            'epochs': 100,
+            'model': 'resnet50',
+            'optimizer': 'adam',
+        }
+    )
 
     run.add_tags(['baseline', 'experiment-v1'])
 
@@ -120,19 +131,25 @@ def migrated_dual_logging_script():
         train_loss = 1.0 / (epoch + 1)
         train_acc = min(0.99, epoch / 100)
 
-        run.log_metrics({
-            'train/loss': train_loss,
-            'train/accuracy': train_acc,
-        }, step=epoch)
+        run.log_metrics(
+            {
+                'train/loss': train_loss,
+                'train/accuracy': train_acc,
+            },
+            step=epoch,
+        )
 
         if epoch % 10 == 0:
             val_loss = train_loss * 1.1
             val_acc = train_acc * 0.95
 
-            run.log_metrics({
-                'val/loss': val_loss,
-                'val/accuracy': val_acc,
-            }, step=epoch)
+            run.log_metrics(
+                {
+                    'val/loss': val_loss,
+                    'val/accuracy': val_acc,
+                },
+                step=epoch,
+            )
 
     run.close()
 
@@ -157,7 +174,7 @@ def fully_migrated_mlop_script():
             'epochs': 100,
             'model': 'resnet50',
             'optimizer': 'adam',
-        }
+        },
     )
 
     # Note: mlop auto-increments steps, so no need to pass step explicitly
@@ -166,19 +183,23 @@ def fully_migrated_mlop_script():
         train_acc = min(0.99, epoch / 100)
 
         # Log metrics (step auto-increments)
-        run.log({
-            'train/loss': train_loss,
-            'train/accuracy': train_acc,
-        })
+        run.log(
+            {
+                'train/loss': train_loss,
+                'train/accuracy': train_acc,
+            }
+        )
 
         if epoch % 10 == 0:
             val_loss = train_loss * 1.1
             val_acc = train_acc * 0.95
 
-            run.log({
-                'val/loss': val_loss,
-                'val/accuracy': val_acc,
-            })
+            run.log(
+                {
+                    'val/loss': val_loss,
+                    'val/accuracy': val_acc,
+                }
+            )
 
     run.finish()
 
@@ -231,9 +252,7 @@ def histogram_logging_example():
         counts, bin_edges = np.histogram(activations, bins=50)
         hist = Histogram(bin_edges=bin_edges, counts=counts)
 
-        run.log_histograms({
-            f'layer{layer_idx}/activations': hist
-        }, step=layer_idx)
+        run.log_histograms({f'layer{layer_idx}/activations': hist}, step=layer_idx)
 
     run.close()
 

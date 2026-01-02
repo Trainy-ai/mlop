@@ -183,7 +183,11 @@ class NeptuneRunWrapper:
     in try-except blocks to ensure Neptune functionality is never impacted.
     """
 
-    def __init__(self, *args, **kwargs):
+    _neptune_run: Any
+    _mlop_run: Optional[Any]
+    _mlop: Optional[Any]
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize both Neptune and mlop runs.
 
@@ -430,9 +434,7 @@ class NeptuneRunWrapper:
                         self._mlop_run.config['tags'] = []
                     self._mlop_run.config['tags'].extend(tags)
             except Exception as e:
-                logger.debug(
-                    f'mlop.compat.neptune: Failed to add tags to mlop: {e}'
-                )
+                logger.debug(f'mlop.compat.neptune: Failed to add tags to mlop: {e}')
 
         return result
 
@@ -517,7 +519,7 @@ class NeptuneRunWrapper:
         d: Dict[str, Any], parent_key: str = '', sep: str = '/'
     ) -> Dict[str, Any]:
         """Flatten nested dictionary for logging."""
-        items = []
+        items: List[tuple[str, Any]] = []
         for k, v in d.items():
             new_key = f'{parent_key}{sep}{k}' if parent_key else k
             if isinstance(v, dict):

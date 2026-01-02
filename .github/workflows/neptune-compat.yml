@@ -45,7 +45,7 @@ jobs:
           set -euox pipefail
           poetry install --with dev --extras full
           # Verify neptune-scale is installed
-          poetry run python -c "import neptune_scale; print(f'neptune-scale version: {neptune_scale.__version__}')"
+          poetry run python -c "import importlib.metadata; import neptune_scale; print(f'neptune-scale version: {importlib.metadata.version(\"neptune-scale\")}')"
 
       - name: Run Neptune compatibility tests (without mlop config)
         run: |
