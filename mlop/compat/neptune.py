@@ -332,15 +332,21 @@ class NeptuneRunWrapper:
                     try:
                         mlop_file = _convert_neptune_file_to_mlop(file_obj, self._mlop)
                         mlop_files[key] = mlop_file
+                        logger.info(
+                            f'mlop.compat.neptune: Converted file {key} to {type(mlop_file).__name__}'
+                        )
                     except Exception as e:
-                        logger.debug(
+                        logger.warning(
                             f'mlop.compat.neptune: Failed to convert file {key}: {e}'
                         )
 
                 if mlop_files:
                     self._mlop_run.log(mlop_files)
+                    logger.info(
+                        f'mlop.compat.neptune: Logged {len(mlop_files)} files to mlop'
+                    )
             except Exception as e:
-                logger.debug(
+                logger.warning(
                     f'mlop.compat.neptune: Failed to assign files to mlop: {e}'
                 )
 
@@ -363,15 +369,21 @@ class NeptuneRunWrapper:
                     try:
                         mlop_file = _convert_neptune_file_to_mlop(file_obj, self._mlop)
                         mlop_files[key] = mlop_file
+                        logger.info(
+                            f'mlop.compat.neptune: Converted file {key} at step {step} to {type(mlop_file).__name__}'
+                        )
                     except Exception as e:
-                        logger.debug(
+                        logger.warning(
                             f'mlop.compat.neptune: Failed to convert file {key}: {e}'
                         )
 
                 if mlop_files:
-                    self._mlop_run.log(mlop_files)
+                    self._mlop_run.log(mlop_files, step=step)
+                    logger.info(
+                        f'mlop.compat.neptune: Logged {len(mlop_files)} files to mlop at step {step}'
+                    )
             except Exception as e:
-                logger.debug(f'mlop.compat.neptune: Failed to log files to mlop: {e}')
+                logger.warning(f'mlop.compat.neptune: Failed to log files to mlop: {e}')
 
         return result
 

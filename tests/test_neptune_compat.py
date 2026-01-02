@@ -610,6 +610,9 @@ class TestNeptuneRealBackend:
         # Should have no mlop run
         assert run._mlop_run is None
 
+        # Wait for Neptune to upload files before closing
+        run.wait_for_submission()
+
         # Close Neptune run
         run.close()
 
@@ -679,6 +682,9 @@ class TestNeptuneRealBackend:
         # Both runs should be active
         assert run._neptune_run is not None
         assert run._mlop_run is not None
+
+        # Wait for Neptune to upload files before closing
+        run.wait_for_submission()
 
         # Close both
         run.close()
