@@ -590,18 +590,29 @@ class TestNeptuneRealBackend:
         run.log_configs({'test': 'real-neptune', 'mode': 'neptune-only'})
         run.log_metrics({'test/metric': 1.0}, step=0)
 
-        # Log test image to Neptune
+        # Log multiple test images to Neptune at different steps
         try:
             from PIL import Image
 
-            # Create simple test image
-            test_image = np.random.randint(0, 255, (32, 32, 3), dtype=np.uint8)
-            img_path = tmp_path / 'neptune_only_test.png'
-            Image.fromarray(test_image).save(img_path)
+            # Log 3 images at different steps
+            for img_step in range(3):
+                # Create unique test image for each step (grayscale gradient)
+                intensity = 50 + (img_step * 80)  # 50, 130, 210
+                test_image = np.full((64, 64, 3), intensity, dtype=np.uint8)
+                # Add some noise
+                test_image += np.random.randint(-20, 20, (64, 64, 3), dtype=np.int16)
+                test_image = np.clip(test_image, 0, 255).astype(np.uint8)
 
-            # Log image to Neptune
-            run.assign_files({'neptune_test_image': NeptuneFile(str(img_path))})
-            print('  ✓ Image logged to Neptune')
+                img_path = tmp_path / f'neptune_test_step_{img_step}.png'
+                Image.fromarray(test_image).save(img_path)
+
+                # Log image at this step
+                run.log_files(
+                    {'test/sample_image': NeptuneFile(str(img_path))},
+                    step=img_step,
+                )
+
+            print('  ✓ Logged 3 images at steps 0, 1, 2')
         except ImportError:
             print('  ⚠ PIL not available, skipping image logging')
 
@@ -656,24 +667,42 @@ class TestNeptuneRealBackend:
                 step=step,
             )
 
-        # Create and log test images
-        # Create a simple test image (32x32 RGB)
-        test_image = np.random.randint(0, 255, (32, 32, 3), dtype=np.uint8)
-        img_path = tmp_path / 'test_image.png'
-
-        # Save image using PIL
+        # Create and log multiple test images at different steps
         try:
             from PIL import Image
 
-            Image.fromarray(test_image).save(img_path)
+            # Log 3 images at different steps to test stepping functionality
+            for img_step in range(3):
+                # Create unique test image for each step (different colors)
+                # Use step-based color to make images visually distinct
+                base_color = [
+                    (255, 0, 0),    # Red for step 0
+                    (0, 255, 0),    # Green for step 1
+                    (0, 0, 255),    # Blue for step 2
+                ][img_step]
 
-            # Log image using Neptune File object
-            run.assign_files({'test_image': NeptuneFile(str(img_path))})
+                test_image = np.zeros((64, 64, 3), dtype=np.uint8)
+                test_image[:, :] = base_color
+                # Add some variation
+                test_image += np.random.randint(0, 50, (64, 64, 3), dtype=np.uint8)
+                test_image = np.clip(test_image, 0, 255).astype(np.uint8)
 
-            # Log image at specific step
-            run.log_files({'step_image': NeptuneFile(str(img_path))}, step=1)
+                img_path = tmp_path / f'test_image_step_{img_step}.png'
+                Image.fromarray(test_image).save(img_path)
 
-            print('  ✓ Images logged to both Neptune and mlop')
+                # Log image at this step
+                run.log_files(
+                    {'training/sample_image': NeptuneFile(str(img_path))},
+                    step=img_step,
+                )
+
+            # Also log a static image (not associated with a step)
+            static_img = np.random.randint(0, 255, (64, 64, 3), dtype=np.uint8)
+            static_path = tmp_path / 'static_image.png'
+            Image.fromarray(static_img).save(static_path)
+            run.assign_files({'summary/final_image': NeptuneFile(str(static_path))})
+
+            print('  ✓ Logged 3 stepped images + 1 static image')
         except ImportError:
             print('  ⚠ PIL not available, skipping image logging')
 
