@@ -578,6 +578,8 @@ class TestNeptuneRealBackend:
         # Ensure mlop is NOT configured
         assert 'MLOP_PROJECT' not in os.environ
 
+        # Apply monkeypatch BEFORE importing Run
+        import mlop.compat.neptune  # noqa: F401, I001
         import numpy as np
         from neptune_scale import Run
 
@@ -646,6 +648,8 @@ class TestNeptuneRealBackend:
         This is the ultimate validation that dual-logging works in production.
         Requires both Neptune and mlop credentials.
         """
+        # Apply monkeypatch BEFORE importing Run
+        import mlop.compat.neptune  # noqa: F401, I001
         import numpy as np
         from neptune_scale import Run
 
@@ -735,6 +739,8 @@ class TestNeptuneRealBackend:
     )
     def test_real_neptune_context_manager(self, clean_env):
         """Test context manager protocol with real Neptune."""
+        # Apply monkeypatch BEFORE importing Run
+        import mlop.compat.neptune  # noqa: F401, I001
         from neptune_scale import Run
 
         task_name = get_task_name()
@@ -760,6 +766,8 @@ class TestNeptuneRealBackend:
 
         Simulates mlop service being down mid-run.
         """
+        # Apply monkeypatch BEFORE importing Run
+        import mlop.compat.neptune  # noqa: F401, I001
         from neptune_scale import Run
 
         task_name = get_task_name()
