@@ -45,6 +45,7 @@ pillow = ">=10.0"
 torchvision = "*"
 imageio = "^2.37.0"
 moviepy = "^1.0.3"
+neptune-scale = "*"  # for testing Neptune compatibility layer
 
 
 [tool.poetry.extras]
