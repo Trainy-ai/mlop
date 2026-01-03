@@ -105,9 +105,9 @@ def migrated_dual_logging_script():
     Only difference: added one import line at the top.
     """
     # ADD THIS LINE to enable dual-logging to mlop
-    import mlop.compat.neptune  # noqa: F401
-
     from neptune_scale import Run
+
+    import mlop.compat.neptune  # noqa: F401
 
     # Rest of the code is IDENTICAL to the original
     run = Run(
@@ -211,10 +211,10 @@ def image_logging_example():
     """
     Example showing how image logging works during migration.
     """
-    import mlop.compat.neptune  # noqa: F401
-    import numpy as np
     from neptune_scale import Run
     from neptune_scale.types import File
+
+    import mlop.compat.neptune  # noqa: F401
 
     run = Run(experiment_name='image-logging-test')
 
@@ -236,10 +236,11 @@ def histogram_logging_example():
     """
     Example showing how histogram logging works during migration.
     """
-    import mlop.compat.neptune  # noqa: F401
     import numpy as np
     from neptune_scale import Run
     from neptune_scale.types import Histogram
+
+    import mlop.compat.neptune  # noqa: F401
 
     run = Run(experiment_name='histogram-test')
 

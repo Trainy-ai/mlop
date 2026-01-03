@@ -20,8 +20,12 @@ logging.raiseExceptions = False
 # This prevents "I/O operation on closed file" errors when pytest
 # captures stdout/stderr and Neptune's async operations try to log
 # after the streams are closed.
-for logger_name in ['neptune_scale', 'neptune_scale.util.logger',
-                    'neptune_scale.api.run', 'neptune']:
+for logger_name in [
+    'neptune_scale',
+    'neptune_scale.util.logger',
+    'neptune_scale.api.run',
+    'neptune',
+]:
     _logger = logging.getLogger(logger_name)
     _logger.setLevel(logging.CRITICAL + 1)
     _logger.disabled = True
