@@ -45,6 +45,7 @@ pillow = ">=10.0"
 torchvision = "*"
 imageio = "^2.37.0"
 moviepy = "^1.0.3"
+neptune-scale = "*"  # for testing Neptune compatibility layer
 
 
 [tool.poetry.extras]
@@ -53,7 +54,7 @@ full = [
 ]
 
 [tool.poetry.scripts]
-mlop = 'mlop:__main__.main'
+mlop = 'mlop.__main__:main'
 
 [tool.ruff]
 line-length = 88
@@ -61,6 +62,12 @@ line-length = 88
 [tool.ruff.lint]
 # pyflakes, pycodestyle, isort
 select = ["F", "E", "W", "I001"]
+
+[tool.ruff.lint.per-file-ignores]
+# E402: Module level import not at top of file
+# Required in test_neptune_compat.py because logging must be configured
+# before importing neptune_scale to prevent I/O errors
+"tests/test_neptune_compat.py" = ["E402"]
 
 [tool.ruff.format]
 # 5. Use single quotes in `ruff format`.
@@ -73,4 +80,5 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 markers = [
     "distributed: tests that require multi-rank torch.distributed setup",
+    "neptune: tests that require real Neptune API credentials",
 ]
