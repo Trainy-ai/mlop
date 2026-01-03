@@ -16,6 +16,12 @@ from unittest import mock
 
 import pytest
 
+# Prevent Python's logging module from printing error messages when
+# handlers fail (e.g., "I/O operation on closed file" errors).
+# This is critical for Neptune tests where async operations may try to
+# log after pytest has closed stdout/stderr.
+logging.raiseExceptions = False
+
 # Suppress neptune_scale logging BEFORE importing neptune_scale
 # This prevents "I/O operation on closed file" errors when pytest
 # captures stdout/stderr and Neptune's async operations try to log
