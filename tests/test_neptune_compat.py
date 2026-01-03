@@ -9,11 +9,23 @@ These tests validate that:
 5. Fallback behavior is correct
 """
 
+import logging
 import os
 from typing import Any, Dict
 from unittest import mock
 
 import pytest
+
+# Suppress neptune_scale logging BEFORE importing neptune_scale
+# This prevents "I/O operation on closed file" errors when pytest
+# captures stdout/stderr and Neptune's async operations try to log
+# after the streams are closed.
+for logger_name in ['neptune_scale', 'neptune_scale.util.logger',
+                    'neptune_scale.api.run', 'neptune']:
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.CRITICAL + 1)
+    logger.disabled = True
+    logger.addHandler(logging.NullHandler())
 
 # Test both with and without neptune installed
 pytest.importorskip('neptune_scale')
