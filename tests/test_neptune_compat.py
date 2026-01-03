@@ -165,15 +165,38 @@ def suppress_neptune_logging():
     """
     import logging
 
-    # Get Neptune's logger and disable it
-    neptune_logger = logging.getLogger('neptune_scale')
-    original_level = neptune_logger.level
-    neptune_logger.setLevel(logging.CRITICAL + 1)  # Disable all logging
+    # Disable all Neptune-related loggers
+    loggers_to_suppress = [
+        'neptune_scale',
+        'neptune_scale.util.logger',
+        'neptune_scale.api.run',
+        'neptune',
+    ]
+
+    original_states = {}
+    for logger_name in loggers_to_suppress:
+        logger = logging.getLogger(logger_name)
+        original_states[logger_name] = {
+            'level': logger.level,
+            'disabled': logger.disabled,
+            'handlers': logger.handlers[:],
+        }
+        logger.setLevel(logging.CRITICAL + 1)
+        logger.disabled = True
+        # Remove all handlers to prevent any output
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
 
     yield
 
-    # Restore original level
-    neptune_logger.setLevel(original_level)
+    # Restore original states
+    for logger_name, state in original_states.items():
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(state['level'])
+        logger.disabled = state['disabled']
+        for handler in state['handlers']:
+            if handler not in logger.handlers:
+                logger.addHandler(handler)
 
 
 class TestNeptuneCompatBasic:
