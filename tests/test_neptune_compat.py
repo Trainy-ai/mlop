@@ -666,9 +666,9 @@ class TestNeptuneRealBackend:
             for img_step in range(3):
                 # Create unique test image for each step (grayscale gradient)
                 intensity = 50 + (img_step * 80)  # 50, 130, 210
-                test_image = np.full((64, 64, 3), intensity, dtype=np.uint8)
-                # Add some noise
-                test_image += np.random.randint(-20, 20, (64, 64, 3), dtype=np.int16)
+                test_image = np.full((64, 64, 3), intensity, dtype=np.int16)
+                # Add some noise (use int16 to allow negative values, then clip)
+                test_image = test_image + np.random.randint(-20, 20, (64, 64, 3))
                 test_image = np.clip(test_image, 0, 255).astype(np.uint8)
 
                 img_path = tmp_path / f'neptune_test_step_{img_step}.png'
@@ -754,10 +754,10 @@ class TestNeptuneRealBackend:
                     (0, 0, 255),  # Blue for step 2
                 ][img_step]
 
-                test_image = np.zeros((64, 64, 3), dtype=np.uint8)
+                test_image = np.zeros((64, 64, 3), dtype=np.int16)
                 test_image[:, :] = base_color
-                # Add some variation
-                test_image += np.random.randint(0, 50, (64, 64, 3), dtype=np.uint8)
+                # Add some variation (use int16 to avoid overflow, then clip)
+                test_image = test_image + np.random.randint(0, 50, (64, 64, 3))
                 test_image = np.clip(test_image, 0, 255).astype(np.uint8)
 
                 img_path = tmp_path / f'test_image_step_{img_step}.png'
