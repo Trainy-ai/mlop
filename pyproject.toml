@@ -54,7 +54,7 @@ full = [
 ]
 
 [tool.poetry.scripts]
-mlop = 'mlop:__main__.main'
+mlop = 'mlop.__main__:main'
 
 [tool.ruff]
 line-length = 88
