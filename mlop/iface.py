@@ -1,7 +1,9 @@
+import json
 import logging
 import queue
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import httpx
@@ -96,6 +98,8 @@ class ServerInterface:
         self._thread_progress: Optional[threading.Thread] = None
         self._lock_progress = threading.Lock()
         self._total = 0
+
+        self._lock_failure_log = threading.Lock()  # Thread-safe file writes
 
     def start(self) -> None:
         logger.info(f'{tag}: find live updates at {print_url(self.settings.url_view)}')
@@ -348,6 +352,39 @@ class ServerInterface:
             except queue.Empty:
                 break
 
+    def _log_failed_request(
+        self,
+        request_type: str,
+        url: str,
+        payload_info: str,
+        error_info: str,
+        retry_count: int,
+    ) -> None:
+        """Log failed requests to file after all retries exhausted."""
+
+        # Only log failures in DEBUG mode
+        if self.settings.x_log_level > logging.DEBUG:
+            return
+
+        failure_log_path = f'{self.settings.get_dir()}/failed_requests.log'
+
+        log_entry = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'request_type': request_type,
+            'url': url,
+            'payload_info': payload_info,
+            'error_info': error_info,
+            'retries_attempted': retry_count,
+        }
+
+        try:
+            with self._lock_failure_log:
+                with open(failure_log_path, 'a') as f:
+                    json.dump(log_entry, f)
+                    f.write('\n')
+        except Exception as e:
+            logger.debug(f'{tag}: failed to write failure log: {e}')
+
     def _try(
         self,
         method,
@@ -357,15 +394,31 @@ class ServerInterface:
         name: Union[str, None] = None,
         drained: Optional[List[Any]] = None,
         retry: int = 0,
+        error_info: str = '',
     ):
         if retry >= self.settings.x_file_stream_retry_max:
             logger.critical(f'{tag}: {name}: failed after {retry} retries')
+
+            # Log failure details to file
+            payload_info = f'{len(drained)} items' if drained else 'single request'
+            self._log_failed_request(
+                request_type=name or 'unknown',
+                url=url,
+                payload_info=payload_info,
+                error_info=error_info,
+                retry_count=retry,
+            )
+
             return None
 
         try:
             r = method(url, content=content, headers=headers)
             if r.status_code in [200, 201]:
                 return r
+
+            # Capture error info for potential failure logging
+            error_info = f'HTTP {r.status_code}: {r.text[:100]}'
+
             max_retry = self.settings.x_file_stream_retry_max
             status_code = r.status_code if r else 'N/A'
             target = len(drained) if drained else 'request'
@@ -382,6 +435,9 @@ class ServerInterface:
                 response,
             )
         except Exception as e:
+            # Capture error info for potential failure logging
+            error_info = f'{type(e).__name__}: {str(e)}'
+
             logger.debug(
                 '%s: %s: retry %s/%s: no response from %s: %s: %s',
                 tag,
@@ -400,7 +456,14 @@ class ServerInterface:
         )
 
         return self._try(
-            method, url, headers, content, name=name, drained=drained, retry=retry + 1
+            method,
+            url,
+            headers,
+            content,
+            name=name,
+            drained=drained,
+            retry=retry + 1,
+            error_info=error_info,
         )
 
     def _put_v1(self, url, headers, content, client, name='put'):
