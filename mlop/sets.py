@@ -156,8 +156,57 @@ def setup(settings: Union[Settings, Dict[str, Any], None] = None) -> Settings:
         return settings
 
     new_settings = Settings()
-    if isinstance(settings, dict):
-        new_settings.update(settings)
-    else:
-        new_settings.update({})
+
+    # Read MLOP_DEBUG_LEVEL environment variable
+    env_log_level = os.getenv('MLOP_DEBUG_LEVEL')
+    if env_log_level is not None:
+        level_map = {
+            'DEBUG': 10,
+            'INFO': 20,
+            'WARNING': 30,
+            'ERROR': 40,
+            'CRITICAL': 50,
+        }
+        if env_log_level.upper() in level_map:
+            new_settings.x_log_level = level_map[env_log_level.upper()]
+        elif env_log_level.isdigit():
+            new_settings.x_log_level = int(env_log_level)
+        else:
+            logger.warning(
+                f'{tag}: invalid MLOP_DEBUG_LEVEL "{env_log_level}", using default. '
+                f'Valid values: DEBUG, INFO, WARNING, ERROR, CRITICAL'
+            )
+
+    # Prepare settings dict and check for URL overrides
+    settings_dict = settings if isinstance(settings, dict) else {}
+
+    # Read URL environment variables
+    env_url_app = os.getenv('MLOP_URL_APP')
+    env_url_api = os.getenv('MLOP_URL_API')
+    env_url_ingest = os.getenv('MLOP_URL_INGEST')
+    env_url_py = os.getenv('MLOP_URL_PY')
+
+    # If any URL env var is set, ensure all four URLs are in settings_dict
+    # This prevents update_host() from resetting to defaults
+    if any([env_url_app, env_url_api, env_url_ingest, env_url_py]):
+        # Set defaults for any URLs not provided
+        default_urls = {
+            'url_app': 'https://trakkur.trainy.ai',
+            'url_api': 'https://trakkur-api.trainy.ai',
+            'url_ingest': 'https://trakkur-ingest.trainy.ai',
+            'url_py': 'https://trakkur-py.trainy.ai',
+        }
+
+        # Merge: user params > env vars > defaults
+        for url_key, default_value in default_urls.items():
+            if url_key not in settings_dict:
+                env_var_name = f'MLOP_{url_key.upper()}'
+                env_value = os.getenv(env_var_name)
+                settings_dict[url_key] = (
+                    env_value if env_value is not None else default_value
+                )
+
+    # Apply all settings (user params override env vars)
+    new_settings.update(settings_dict)
+
     return new_settings
