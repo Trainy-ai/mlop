@@ -1,14 +1,12 @@
-import httpx
 import json
 import logging
 import queue
 import threading
 import time
-
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Union
 
-
+import httpx
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
@@ -101,7 +99,6 @@ class ServerInterface:
         self._lock_progress = threading.Lock()
         self._total = 0
 
-        self._last_error_info = ''  # Track last error for failure logging
         self._lock_failure_log = threading.Lock()  # Thread-safe file writes
 
     def start(self) -> None:
@@ -372,7 +369,7 @@ class ServerInterface:
         failure_log_path = f'{self.settings.get_dir()}/failed_requests.log'
 
         log_entry = {
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'request_type': request_type,
             'url': url,
             'payload_info': payload_info,
@@ -397,6 +394,7 @@ class ServerInterface:
         name: Union[str, None] = None,
         drained: Optional[List[Any]] = None,
         retry: int = 0,
+        error_info: str = '',
     ):
         if retry >= self.settings.x_file_stream_retry_max:
             logger.critical(f'{tag}: {name}: failed after {retry} retries')
@@ -407,7 +405,7 @@ class ServerInterface:
                 request_type=name or 'unknown',
                 url=url,
                 payload_info=payload_info,
-                error_info=self._last_error_info,
+                error_info=error_info,
                 retry_count=retry,
             )
 
@@ -418,8 +416,8 @@ class ServerInterface:
             if r.status_code in [200, 201]:
                 return r
 
-            # Store error info for potential failure logging
-            self._last_error_info = f'HTTP {r.status_code}: {r.text[:100]}'
+            # Capture error info for potential failure logging
+            error_info = f'HTTP {r.status_code}: {r.text[:100]}'
 
             max_retry = self.settings.x_file_stream_retry_max
             status_code = r.status_code if r else 'N/A'
@@ -437,8 +435,8 @@ class ServerInterface:
                 response,
             )
         except Exception as e:
-            # Store error info for potential failure logging
-            self._last_error_info = f'{type(e).__name__}: {str(e)}'
+            # Capture error info for potential failure logging
+            error_info = f'{type(e).__name__}: {str(e)}'
 
             logger.debug(
                 '%s: %s: retry %s/%s: no response from %s: %s: %s',
@@ -458,7 +456,14 @@ class ServerInterface:
         )
 
         return self._try(
-            method, url, headers, content, name=name, drained=drained, retry=retry + 1
+            method,
+            url,
+            headers,
+            content,
+            name=name,
+            drained=drained,
+            retry=retry + 1,
+            error_info=error_info,
         )
 
     def _put_v1(self, url, headers, content, client, name='put'):
