@@ -1,8 +1,5 @@
 # Neptune to mlop Migration Guide
 
-**Status**: Active during 2-month transition period
-**Last Updated**: 2025-01-02
-
 ## Overview
 
 This document describes the Neptune-to-mlop dual-logging compatibility layer that enables a seamless migration from Neptune experiment tracking to mlop's Trakkur platform.
@@ -431,31 +428,6 @@ run.log({"loss": 0.4}, step=100)
 run.log({"loss": 0.3})  # step auto-increments to 101
 ```
 
-## Error Handling
-
-### Hard Guarantees
-
-The compatibility layer **guarantees**:
-
-1. ✅ **Neptune never fails** due to mlop errors
-2. ✅ **All exceptions caught** silently
-3. ✅ **Return values preserved** from Neptune
-4. ✅ **No side effects** on Neptune's behavior
-
-### Error Scenarios and Behavior
-
-| Error Scenario | Behavior | Log Level |
-|----------------|----------|-----------|
-| `MLOP_PROJECT` not set | Neptune-only logging | INFO |
-| mlop not installed | Neptune-only logging | WARNING |
-| Invalid `MLOP_API_KEY` | Neptune-only logging | WARNING |
-| mlop service down | Neptune-only logging | WARNING |
-| `mlop.init()` fails | Neptune-only logging | WARNING |
-| `mlop_run.log()` fails | Continue with Neptune | DEBUG |
-| `mlop_run.finish()` fails | Neptune closes normally | WARNING |
-| Network timeout | Handled by mlop async queue | None (internal) |
-| Type conversion fails | Skip that item | DEBUG |
-
 ### Logging Configuration
 
 To see mlop errors during development:
@@ -527,27 +499,6 @@ export MLOP_PROJECT="test-project"
 export MLOP_API_KEY="invalid-key-to-force-failure"
 python your_training_script.py  # Should still work with Neptune
 ```
-
-## Migration Timeline
-
-### 2-Month Transition Period
-
-**Month 1: Enablement (Weeks 1-4)**
-- ✅ Week 1-2: Add compatibility import to all training scripts
-- ✅ Week 2-3: Configure `MLOP_PROJECT` for all environments
-- ✅ Week 3-4: Verify dual-logging works across all jobs
-- 📊 Primary UI: Continue using Neptune
-
-**Month 2: Transition (Weeks 5-8)**
-- 🔄 Week 5-6: Train team on mlop/Trakkur UI
-- 🔄 Week 6-7: Gradually shift to mlop as primary UI
-- ✅ Week 7-8: Verify all features work in mlop
-- 📊 Backup: Keep Neptune running
-
-**After Month 2: Full Migration**
-- 🎯 Option A: Keep compatibility layer (minimal maintenance)
-- 🎯 Option B: Migrate to native mlop API calls
-- 🔚 Decommission Neptune subscription
 
 ### Migration Checklist
 
