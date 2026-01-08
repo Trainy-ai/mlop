@@ -2525,6 +2525,18 @@ cffi = ">=1.0"
 numpy = "*"
 
 [[package]]
+name = "sqids"
+version = "0.5.2"
+description = "Generate YouTube-like ids from numbers."
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+files = [
+    {file = "sqids-0.5.2-py3-none-any.whl", hash = "sha256:0089ba823e21fd44290c7225f02fb0b5140c36e41959c04d86d3f6f2513799be"},
+    {file = "sqids-0.5.2.tar.gz", hash = "sha256:5ac08f0c5c9b6814bc2e7c79ee5931e0849d25d95c50e415771b022a44f58af9"},
+]
+
+[[package]]
 name = "sympy"
 version = "1.14.0"
 description = "Computer algebra system (CAS) in Python"
@@ -2856,4 +2868,4 @@ full = ["nvidia-ml-py"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "b69f2d944c681d9adb7dc56c136f30bd14c0c6a41d35c699fb91c39f9b82272a"
+content-hash = "6d15e597512f8ca635dbd8ff4b6824d8a05423b9a4cdbff0a0ab74edacc186f5"
