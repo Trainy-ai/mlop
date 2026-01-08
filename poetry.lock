@@ -2868,4 +2868,4 @@ full = ["nvidia-ml-py"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "6d15e597512f8ca635dbd8ff4b6824d8a05423b9a4cdbff0a0ab74edacc186f5"
+content-hash = "f5c85ae0615039e92cf272058aaaf2eb79bfe25a5e983318812094bc1e134933"
