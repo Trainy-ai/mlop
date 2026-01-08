@@ -318,7 +318,7 @@ run.close()
 | Neptune API | mlop Equivalent | Support Status | Notes |
 |-------------|-----------------|----------------|-------|
 | `Run(experiment_name, ...)` | `mlop.init(name, ...)` | ✅ Full | Experiment name → run name |
-| `log_metrics(data, step)` | `run.log(data)` | ✅ Full | Step numbers may differ |
+| `log_metrics(data, step)` | `run.log(data, step)` | ✅ Full | Step parameter passed through |
 | `log_configs(data)` | `config={...}` in init | ✅ Full | Also logged as metrics |
 | `assign_files(files)` | `run.log({k: mlop.Image(v)})` | ✅ Full | Auto type conversion |
 | `log_files(files, step)` | `run.log({k: mlop.Image(v)})` | ✅ Full | Auto type conversion |
@@ -383,6 +383,52 @@ import mlop
 run = mlop.init(project='my-project', tags=['production', 'v2'])
 run.add_tags('validated')
 run.remove_tags('v2')
+```
+
+### Step Parameter Handling
+
+**Important**: When using dual-logging, the `step` parameter you provide to Neptune methods is **automatically passed through to mlop**. This ensures charts and metrics stay aligned between both systems:
+
+```python
+import mlop.compat.neptune
+from neptune_scale import Run
+
+run = Run(experiment_name='my-training')
+
+# Step values are preserved across both systems
+run.log_metrics({"loss": 0.5}, step=0)
+run.log_metrics({"loss": 0.4}, step=100)
+run.log_metrics({"loss": 0.3}, step=200)
+
+# Both Neptune AND mlop receive step=0, step=100, step=200
+# Charts will be perfectly aligned ✅
+run.close()
+```
+
+**Methods that pass step through to mlop:**
+- ✅ `log_metrics(data, step)` - metric values at specific steps
+- ✅ `log_files(files, step)` - files logged at specific steps
+- ✅ `log_histograms(histograms, step)` - histogram data at specific steps
+
+**Behavior details:**
+- Neptune's explicit `step` parameter is passed directly to `mlop.log(data, step=step)`
+- This ensures x-axis alignment in charts when viewing metrics in either system
+- If you don't provide a step, mlop auto-increments (but you should always provide step with Neptune)
+- Step values can be any integer (not required to be sequential)
+
+**Direct mlop usage:**
+```python
+# When ready to migrate away from Neptune
+import mlop
+
+run = mlop.init(project='my-project')
+
+# mlop also supports explicit step parameter
+run.log({"loss": 0.5}, step=0)
+run.log({"loss": 0.4}, step=100)
+
+# Or auto-increment (if step=None)
+run.log({"loss": 0.3})  # step auto-increments to 101
 ```
 
 ## Error Handling
@@ -552,21 +598,6 @@ curl https://trakkur-api.trainy.ai/health
 - Network/firewall blocking mlop endpoints
 - mlop service temporarily down
 
-#### Issue: "Neptune stopped working"
-
-**THIS SHOULD NEVER HAPPEN!** If it does:
-
-1. **Immediate workaround**: Remove `import mlop.compat.neptune`
-2. **Report bug**: File an issue with reproduction steps
-3. **Check Neptune credentials**: Verify Neptune API token is valid
-4. **Isolate the problem**:
-   ```python
-   # Test without compat layer
-   from neptune_scale import Run
-   run = Run(experiment_name="test")
-   run.close()
-   ```
-
 #### Issue: "Step numbers don't match between Neptune and mlop"
 
 **Expected behavior**: This is normal and acceptable during migration
@@ -619,26 +650,6 @@ A: Yes, unset `MLOP_PROJECT`: `unset MLOP_PROJECT`
 **Q: Do I need neptune-scale installed?**
 A: Yes, the compatibility layer wraps Neptune's API, so Neptune must be installed.
 
-**Q: Can I use this in production?**
-A: Yes! It's designed for production use during migration.
-
-**Q: What happens after the 2-month window?**
-A: You can:
-  - Keep using the compatibility layer indefinitely (minimal maintenance)
-  - Migrate to native mlop API (recommended for long term)
-
-**Q: Does this work with Neptune async mode?**
-A: Yes, the wrapper supports all Neptune modes.
-
-**Q: Can I log to a custom mlop instance?**
-A: Yes, set `MLOP_URL_APP`, `MLOP_URL_API`, `MLOP_URL_INGEST` environment variables.
-
-**Q: Are there any Neptune features that won't work with mlop?**
-A: String series (`log_string_series`) are Neptune-only and won't appear in mlop. All other features are supported.
-
-**Q: How do I know if dual-logging is working?**
-A: Run `./scripts/test_neptune_migration.sh` or check both UIs for your experiment.
-
 ## See Also
 
 - **Examples**: `examples/neptune_migration_example.py`
@@ -649,7 +660,7 @@ A: Run `./scripts/test_neptune_migration.sh` or check both UIs for your experime
 
 ---
 
-**Questions or Issues?** File a GitHub issue or contact the MLOps team.
+**Questions or Issues?** File a GitHub issue
 
 ## Testing with Real Neptune
 

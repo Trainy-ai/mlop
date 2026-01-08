@@ -285,8 +285,7 @@ class NeptuneRunWrapper:
         """
         Log metrics to both Neptune and mlop.
 
-        Neptune's explicit step is mapped to mlop's auto-incrementing step
-        by calling log() multiple times if needed.
+        Neptune's explicit step is passed through to mlop to maintain alignment.
         """
         # Call Neptune first (unless disabled)
         result = None
@@ -295,13 +294,11 @@ class NeptuneRunWrapper:
                 data=data, step=step, timestamp=timestamp, **kwargs
             )
 
-        # Try to log to mlop
+        # Try to log to mlop with the same step value
         if self._mlop_run:
             try:
-                # mlop auto-increments steps, but we can set it explicitly
-                # For now, just log the data and let mlop handle steps
-                # Note: This may cause step misalignment - acceptable for migration
-                self._mlop_run.log(data)
+                # Pass Neptune's explicit step to mlop to maintain alignment during dual-logging
+                self._mlop_run.log(data, step=step)
             except Exception as e:
                 logger.debug(f'mlop.compat.neptune: Failed to log metrics to mlop: {e}')
 

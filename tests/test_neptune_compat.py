@@ -34,6 +34,7 @@ for logger_name in [
 import os
 from typing import Any, Dict
 from unittest import mock
+from unittest.mock import call
 
 import pytest
 
@@ -320,9 +321,38 @@ class TestNeptuneCompatDualLogging:
                 'acc': 0.9,
             }
 
-            # Verify mlop received the data
-            mock_mlop_run.log.assert_called_with({'loss': 0.5, 'acc': 0.9})
+            # Verify mlop received the data with step parameter
+            mock_mlop_run.log.assert_called_with({'loss': 0.5, 'acc': 0.9}, step=0)
             mock_mlop_run.finish.assert_called_once()
+
+    def test_log_metrics_passes_step_to_mlop(
+        self, mock_neptune_backend, mlop_config_env
+    ):
+        """Test that log_metrics correctly passes step parameter to mlop."""
+        # Mock mlop.init to avoid actual API calls
+        mock_mlop_run = mock.MagicMock()
+        mock_mlop_run.config = {}
+        mock_mlop_run.log = mock.MagicMock()
+        mock_mlop_run.finish = mock.MagicMock()
+
+        with mock.patch('mlop.init', return_value=mock_mlop_run):
+            from neptune_scale import Run
+
+            run = Run(experiment_name='step-test')
+
+            # Log metrics with various step values
+            run.log_metrics({'loss': 0.5}, step=0)
+            run.log_metrics({'acc': 0.9}, step=100)
+            run.log_metrics({'f1': 0.85}, step=200)
+            run.close()
+
+            # Verify mlop received correct step values
+            assert mock_mlop_run.log.call_count == 3
+            calls = mock_mlop_run.log.call_args_list
+
+            assert calls[0] == call({'loss': 0.5}, step=0)
+            assert calls[1] == call({'acc': 0.9}, step=100)
+            assert calls[2] == call({'f1': 0.85}, step=200)
 
     def test_dual_logging_configs(self, mock_neptune_backend, mlop_config_env):
         """Test that configs are logged to both Neptune and mlop."""
