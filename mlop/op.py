@@ -24,7 +24,7 @@ from .iface import ServerInterface
 from .log import setup_logger, teardown_logger
 from .store import DataStore
 from .sys import System
-from .util import get_char, get_val, sqid_encode, to_json
+from .util import get_char, get_val, to_json
 
 logger = logging.getLogger(f"{__name__.split('.')[0]}")
 tag = 'Operation'
@@ -97,10 +97,10 @@ class OpMonitor:
 
 
 class Op:
-    def __init__(self, config, settings) -> None:
+    def __init__(self, config, settings, tags=None) -> None:
         self.config = config
         self.settings = settings
-        self.tags: List[str] = []  # Initialize tags list
+        self.tags: List[str] = tags if tags else []  # Use provided tags or empty list
         self._monitor = OpMonitor(op=self)
 
         if self.settings.mode == 'noop':
@@ -122,7 +122,6 @@ class Op:
             )
             self.settings.url_view = r.json()['url']
             self.settings._op_id = r.json()['runId']
-            self.settings._op_id_encoded = sqid_encode(self.settings._op_id)
             logger.info(f'{tag}: started run {str(self.settings._op_id)}')
 
             os.makedirs(f'{self.settings.get_dir()}/files', exist_ok=True)

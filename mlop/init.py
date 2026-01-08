@@ -12,12 +12,13 @@ tag = 'Init'
 
 
 class OpInit:
-    def __init__(self, config) -> None:
+    def __init__(self, config, tags=None) -> None:
         self.kwargs = None
         self.config: Dict[str, Any] = config
+        self.tags = tags
 
     def init(self) -> Op:
-        op = Op(config=self.config, settings=self.settings)
+        op = Op(config=self.config, settings=self.settings, tags=self.tags)
         op.settings.meta = []  # TODO: check
         op.start()
         return op
@@ -46,16 +47,18 @@ def init(
     )  # datetime.now().strftime("%Y%m%d"), str(int(time.time()))
     # settings._op_id = id if id else gen_id(seed=settings.project)
 
+    # Normalize tags before passing to Op
+    normalized_tags = None
+    if tags:
+        if isinstance(tags, str):
+            normalized_tags = [tags]
+        else:
+            normalized_tags = list(tags)
+
     try:
-        op_init = OpInit(config=config)
+        op_init = OpInit(config=config, tags=normalized_tags)
         op_init.setup(settings=settings)
         op = op_init.init()
-
-        # Set tags if provided
-        if tags:
-            if isinstance(tags, str):
-                tags = [tags]
-            op.tags = list(tags)  # Copy the list
 
         return op
     except Exception as e:

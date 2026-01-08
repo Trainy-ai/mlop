@@ -15,7 +15,6 @@ import uuid
 from typing import Any, Dict, Sequence, Union
 
 import numpy as np
-from sqids import Sqids
 
 from .sets import get_console
 
@@ -24,22 +23,6 @@ tag = 'Util'
 
 VALID_CHAR = re.compile(r'^[ -~]+$')
 INVALID_CHAR = re.compile(r'[^ -~]')
-
-# SQID encoder for run IDs (matches backend configuration)
-_sqids = Sqids(
-    min_length=5,
-    alphabet='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-)
-
-
-def sqid_encode(run_id: int) -> str:
-    """Encode a numeric run ID to SQID format for tRPC endpoints."""
-    return _sqids.encode([run_id])
-
-
-def sqid_decode(sqid: str) -> int:
-    """Decode a SQID back to numeric run ID."""
-    return _sqids.decode(sqid)[0]
 
 
 class ANSI:
