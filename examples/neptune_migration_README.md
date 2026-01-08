@@ -323,8 +323,8 @@ run.close()
 | `assign_files(files)` | `run.log({k: mlop.Image(v)})` | ✅ Full | Auto type conversion |
 | `log_files(files, step)` | `run.log({k: mlop.Image(v)})` | ✅ Full | Auto type conversion |
 | `log_histograms(hists, step)` | `run.log({k: mlop.Histogram(v)})` | ✅ Full | Format conversion |
-| `add_tags(tags)` | Stored in `config['tags']` | ✅ Partial | Tags not first-class in mlop |
-| `remove_tags(tags)` | Updates `config['tags']` | ✅ Partial | Tags not first-class in mlop |
+| `add_tags(tags)` | `run.add_tags(tags)` | ✅ Full | Native tags support |
+| `remove_tags(tags)` | `run.remove_tags(tags)` | ✅ Full | Native tags support |
 | `close()` | `run.finish()` | ✅ Full | Closes both runs |
 | `terminate()` | `run.finish()` | ✅ Full | Terminates both runs |
 | `wait_for_submission()` | N/A | ✅ Passthrough | Neptune-only method |
@@ -347,6 +347,43 @@ The compatibility layer automatically converts Neptune types:
 | `File("*.mp4")` | `mlop.Video()` | File extension |
 | `File(...)` (other) | `mlop.Artifact()` | Default fallback |
 | `Histogram(bin_edges, counts)` | `mlop.Histogram(data=(counts, bins))` | Data structure conversion |
+
+### Tags Support
+
+Tags are now fully supported in mlop through the native tags API. Both Neptune and mlop tags work identically:
+
+```python
+import mlop.compat.neptune
+from neptune_scale import Run
+
+# Initialize with tags
+run = Run(experiment_name='my-training', tags=['experiment', 'baseline'])
+
+# Add tags dynamically
+run.add_tags(['production', 'v2'])  # Works in both Neptune and mlop
+
+# Remove tags
+run.remove_tags('baseline')  # Works in both Neptune and mlop
+
+run.close()
+```
+
+**Implementation**:
+- Neptune tags → mlop native tags (not config array)
+- Uses `mlop_run.add_tags()` and `mlop_run.remove_tags()`
+- Duplicate prevention automatic
+- Tags automatically sync to server via tRPC `runs.updateTags`
+- Initial tags sent during run creation, updates sent dynamically
+
+**Direct mlop usage**:
+```python
+# When ready to migrate away from Neptune
+import mlop
+
+run = mlop.init(project='my-project', tags=['production', 'v2'])
+run.add_tags('validated')
+run.remove_tags('v2')
+```
 
 ## Error Handling
 

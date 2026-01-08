@@ -32,6 +32,7 @@ def init(
     name: Optional[str] = None,
     config: Union[dict, str, None] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
+    tags: Union[str, list[str], None] = None,
     **kwargs,
 ) -> Op:
     # TODO: remove legacy compat
@@ -48,7 +49,15 @@ def init(
     try:
         op_init = OpInit(config=config)
         op_init.setup(settings=settings)
-        return op_init.init()
+        op = op_init.init()
+
+        # Set tags if provided
+        if tags:
+            if isinstance(tags, str):
+                tags = [tags]
+            op.tags = list(tags)  # Copy the list
+
+        return op
     except Exception as e:
         logger.critical('%s: failed, %s', tag, e)  # add early logger
         raise e

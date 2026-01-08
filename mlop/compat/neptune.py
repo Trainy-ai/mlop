@@ -458,26 +458,17 @@ class NeptuneRunWrapper:
         """
         Add tags to Neptune run.
 
-        mlop doesn't have direct tag support, so we log them as metadata.
+        mlop now has native tag support, so we use the native API.
         """
         # Call Neptune first (unless disabled)
         result = None
         if not self._neptune_disabled:
             result = self._neptune_run.add_tags(tags=tags, **kwargs)
 
-        # Try to log to mlop as metadata
+        # Add to mlop using native tags API
         if self._mlop_run:
             try:
-                # Log tags as a special metric
-                tags_str = ','.join(tags)
-                logger.debug(
-                    f'mlop.compat.neptune: Tags added (Neptune only): {tags_str}'
-                )
-                # Could store in config if needed
-                if hasattr(self._mlop_run, 'config'):
-                    if 'tags' not in self._mlop_run.config:
-                        self._mlop_run.config['tags'] = []
-                    self._mlop_run.config['tags'].extend(tags)
+                self._mlop_run.add_tags(tags)
             except Exception as e:
                 logger.debug(f'mlop.compat.neptune: Failed to add tags to mlop: {e}')
 
@@ -489,15 +480,10 @@ class NeptuneRunWrapper:
         if not self._neptune_disabled:
             result = self._neptune_run.remove_tags(tags=tags, **kwargs)
 
+        # Remove from mlop using native tags API
         if self._mlop_run:
             try:
-                if (
-                    hasattr(self._mlop_run, 'config')
-                    and 'tags' in self._mlop_run.config
-                ):
-                    for tag in tags:
-                        if tag in self._mlop_run.config['tags']:
-                            self._mlop_run.config['tags'].remove(tag)
+                self._mlop_run.remove_tags(tags)
             except Exception as e:
                 logger.debug(
                     f'mlop.compat.neptune: Failed to remove tags from mlop: {e}'

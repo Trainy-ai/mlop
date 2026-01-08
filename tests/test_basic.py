@@ -145,3 +145,112 @@ def test_histogram_logging_from_numpy_array():
     run.log({'metrics/histogram': histogram})
     assert histogram.to_dict()['shape'] == 'uniform'
     run.finish()
+
+
+def test_tags_initialization_with_string():
+    """Test initializing a run with a single tag string."""
+    run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name(), tags='experiment')
+    assert 'experiment' in run.tags
+    assert len(run.tags) == 1
+    run.finish()
+
+
+def test_tags_initialization_with_list():
+    """Test initializing a run with multiple tags."""
+    run = mlop.init(
+        project=TESTING_PROJECT_NAME, name=get_task_name(), tags=['production', 'v2', 'baseline']
+    )
+    assert 'production' in run.tags
+    assert 'v2' in run.tags
+    assert 'baseline' in run.tags
+    assert len(run.tags) == 3
+    run.finish()
+
+
+def test_add_tags_single_string():
+    """Test adding a single tag as a string."""
+    run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name())
+    assert len(run.tags) == 0
+
+    run.add_tags('experiment')
+    assert 'experiment' in run.tags
+    assert len(run.tags) == 1
+
+    run.finish()
+
+
+def test_add_tags_list():
+    """Test adding multiple tags as a list."""
+    run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name(), tags='initial')
+    assert len(run.tags) == 1
+
+    run.add_tags(['production', 'v2'])
+    assert 'initial' in run.tags
+    assert 'production' in run.tags
+    assert 'v2' in run.tags
+    assert len(run.tags) == 3
+
+    run.finish()
+
+
+def test_add_tags_duplicate():
+    """Test that adding duplicate tags doesn't create duplicates."""
+    run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name(), tags=['experiment'])
+    assert len(run.tags) == 1
+
+    run.add_tags('experiment')  # Try to add same tag
+    assert len(run.tags) == 1  # Should still be 1
+
+    run.add_tags(['experiment', 'new-tag'])
+    assert len(run.tags) == 2  # Should add only 'new-tag'
+    assert 'experiment' in run.tags
+    assert 'new-tag' in run.tags
+
+    run.finish()
+
+
+def test_remove_tags_single_string():
+    """Test removing a single tag."""
+    run = mlop.init(
+        project=TESTING_PROJECT_NAME, name=get_task_name(), tags=['exp', 'prod', 'v1']
+    )
+    assert len(run.tags) == 3
+
+    run.remove_tags('exp')
+    assert 'exp' not in run.tags
+    assert len(run.tags) == 2
+
+    run.finish()
+
+
+def test_remove_tags_list():
+    """Test removing multiple tags."""
+    run = mlop.init(
+        project=TESTING_PROJECT_NAME,
+        name=get_task_name(),
+        tags=['exp', 'prod', 'v1', 'baseline'],
+    )
+    assert len(run.tags) == 4
+
+    run.remove_tags(['exp', 'v1'])
+    assert 'exp' not in run.tags
+    assert 'v1' not in run.tags
+    assert 'prod' in run.tags
+    assert 'baseline' in run.tags
+    assert len(run.tags) == 2
+
+    run.finish()
+
+
+def test_remove_tags_nonexistent():
+    """Test that removing nonexistent tags doesn't cause errors."""
+    run = mlop.init(project=TESTING_PROJECT_NAME, name=get_task_name(), tags=['exp'])
+    assert len(run.tags) == 1
+
+    run.remove_tags('nonexistent')  # Should not raise error
+    assert len(run.tags) == 1
+
+    run.remove_tags(['exp', 'also-nonexistent'])
+    assert len(run.tags) == 0  # Only 'exp' should be removed
+
+    run.finish()
