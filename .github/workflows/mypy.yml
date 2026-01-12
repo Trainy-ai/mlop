@@ -26,5 +26,7 @@ jobs:
           install-args: "--with dev"
       - name: Running mypy
         run: |
+          set -x
           poetry run python3 -m pip install types-PyYAML
-          poetry run mypy pluto
+          poetry run mypy --version
+          poetry run mypy pluto || { echo "mypy failed with exit code $?"; poetry run mypy pluto --verbose 2>&1 | tail -100; exit 1; }
