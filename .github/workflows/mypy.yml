@@ -27,4 +27,4 @@ jobs:
       - name: Running mypy
         run: |
           poetry run python3 -m pip install types-PyYAML
-          poetry run mypy mlop
+          poetry run mypy pluto

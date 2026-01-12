@@ -27,5 +27,5 @@ jobs:
 
       - name: Running ruff
         run: |
-          poetry run ruff check --diff mlop tests
-          poetry run ruff format --diff mlop tests
+          poetry run ruff check --diff pluto mlop tests
+          poetry run ruff format --diff pluto mlop tests
