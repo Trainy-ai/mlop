@@ -73,11 +73,25 @@ class DataStore:
         self._queue.put((num, data, file, timestamp, step))
 
     def stop(self) -> None:
+        # Wait for queue to drain with timeout to prevent hang during shutdown
+        drain_timeout = 30
+        drain_start = time.time()
         while not self._queue.empty():
-            pass
+            if time.time() - drain_start > drain_timeout:
+                logger.warning(
+                    f'{tag}: Queue drain timeout after {drain_timeout}s, '
+                    f'{self._queue.qsize()} items remaining'
+                )
+                break
+            time.sleep(0.1)  # Avoid busy-wait
         self._stop_event.set()
         if self._thread is not None:
-            self._thread.join(timeout=None)  # TODO: investigate hanging
+            self._thread.join(timeout=30)
+            if self._thread.is_alive():
+                logger.warning(
+                    f'{tag}: Thread {self._thread.name} did not terminate, '
+                    'continuing anyway'
+                )
             self._thread = None
         self.conn.commit()
         self.conn.close()

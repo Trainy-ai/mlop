@@ -458,6 +458,23 @@ class ServerInterface:
                 url,
                 response,
             )
+        except (
+            BrokenPipeError,
+            ConnectionResetError,
+            ConnectionAbortedError,
+            httpx.RemoteProtocolError,
+            httpx.LocalProtocolError,
+        ) as e:
+            # Treat connection errors as shutdown signals - don't retry
+            # This prevents hanging during atexit when sockets are being torn down
+            logger.debug(
+                '%s: %s: connection error (likely shutdown): %s: %s',
+                tag,
+                name,
+                type(e).__name__,
+                e,
+            )
+            return None
         except Exception as e:
             # Capture error info for potential failure logging
             error_info = f'{type(e).__name__}: {str(e)}'
