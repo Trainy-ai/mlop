@@ -70,6 +70,9 @@ class File:
             if hasattr(self, '_image'):
                 os.remove(self._path)
             self._path = os.path.abspath(self._tmp)
+            # Refresh _stat to match the actual file that will be uploaded
+            # This ensures fileSize in presigned URL matches actual content
+            self._stat = os.stat(self._path)
 
 
 class Artifact(File):
