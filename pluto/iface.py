@@ -81,7 +81,7 @@ class ServerInterface:
         self._queue_data: queue.Queue[Any] = queue.Queue()
         self._thread_data: Optional[threading.Thread] = None
         self._thread_file: Optional[threading.Thread] = None
-        self._thread_storage: Optional[threading.Thread] = None
+        self._thread_storage: List[threading.Thread] = []
         self._thread_meta: Optional[threading.Thread] = None
 
         self._queue_message: queue.Queue[Any] = self.settings.message
@@ -198,11 +198,14 @@ class ServerInterface:
             ('num', self._thread_num),
             ('data', self._thread_data),
             ('file', self._thread_file),
-            ('storage', self._thread_storage),
             ('message', self._thread_message),
             ('meta', self._thread_meta),
             ('progress', self._thread_progress),
         ]
+        # Add all storage threads to the join list
+        for storage_thread in self._thread_storage:
+            threads.append(('storage', storage_thread))
+
         for name, t in threads:
             if t is not None:
                 logger.debug(f'{tag}: joining thread {name} (alive={t.is_alive()})')
@@ -211,7 +214,6 @@ class ServerInterface:
                     logger.warning(
                         f'{tag}: Thread {name} ({t.name}) did not terminate, continuing anyway'
                     )
-                t = None
 
         if self._progress_task is not None:
             self._progress.remove_task(self._progress_task)
@@ -348,12 +350,13 @@ class ServerInterface:
                     if not url:
                         logger.critical(f'{tag}: file api did not provide storage url')
                     else:
-                        self._thread_storage = threading.Thread(
+                        storage_thread = threading.Thread(
                             target=self._worker_storage,
                             args=(f, url, data),
                             daemon=True,
                         )
-                        self._thread_storage.start()
+                        self._thread_storage.append(storage_thread)
+                        storage_thread.start()
         except Exception as e:
             logger.critical(
                 '%s: failed to send files to %s: [%s] %s',
