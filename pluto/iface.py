@@ -212,7 +212,8 @@ class ServerInterface:
                 t.join(timeout=self.settings.x_thread_join_timeout_seconds)
                 if t.is_alive():
                     logger.warning(
-                        f'{tag}: Thread {name} ({t.name}) did not terminate, continuing anyway'
+                        f'{tag}: Thread {name} ({t.name}) did not terminate, '
+                        'continuing anyway'
                     )
 
         if self._progress_task is not None:
@@ -326,7 +327,9 @@ class ServerInterface:
             logger.debug(f'{tag}: file upload complete: {f._name}{f._ext}')
         else:
             status = result.status_code if result else 'no response'
-            logger.warning(f'{tag}: file upload failed: {f._name}{f._ext}, status={status}')
+            logger.warning(
+                f'{tag}: file upload failed: {f._name}{f._ext}, status={status}'
+            )
 
     def _worker_file(self, file, q):
         file_count = sum(len(fl) for fl in file.values())
@@ -441,8 +444,14 @@ class ServerInterface:
         error_info: str = '',
     ):
         if retry == 0:
-            content_info = f'{len(content)} bytes' if isinstance(content, bytes) else 'stream'
-            logger.debug(f'{tag}: {name}: {method.__name__.upper()} {url[:80]}... ({content_info})')
+            if isinstance(content, bytes):
+                content_info = f'{len(content)} bytes'
+            else:
+                content_info = 'stream'
+            logger.debug(
+                f'{tag}: {name}: {method.__name__.upper()} '
+                f'{url[:80]}... ({content_info})'
+            )
         if retry >= self.settings.x_file_stream_retry_max:
             logger.critical(f'{tag}: {name}: failed after {retry} retries')
 
