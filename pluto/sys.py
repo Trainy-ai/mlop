@@ -6,7 +6,6 @@ import time
 from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 import psutil
-from git import Repo
 
 from .sets import Settings
 from .util import run_cmd, to_human  # TODO: move to server side
@@ -131,6 +130,8 @@ class System:
     def get_git(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {}
         try:
+            from git import Repo
+
             repo = Repo(
                 f'{self.settings.dir}',
                 search_parent_directories=True,
