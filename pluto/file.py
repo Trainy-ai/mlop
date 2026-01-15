@@ -67,7 +67,14 @@ class File:
             if self._path is None:
                 raise ValueError('File path is not set')
             shutil.copyfile(self._path, self._tmp)
-            if hasattr(self, '_image'):
+            # Only delete temp files we created (in-memory data), not user-provided files
+            is_temp = (
+                (hasattr(self, '_image') and self._image != 'file')
+                or (hasattr(self, '_audio') and self._audio != 'file')
+                or (hasattr(self, '_video') and self._video != 'file')
+                or hasattr(self, '_text')
+            )
+            if is_temp:
                 os.remove(self._path)
             self._path = os.path.abspath(self._tmp)
             # Refresh _stat to match the actual file that will be uploaded
