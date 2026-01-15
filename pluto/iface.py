@@ -81,7 +81,7 @@ class ServerInterface:
         self._queue_data: queue.Queue[Any] = queue.Queue()
         self._thread_data: Optional[threading.Thread] = None
         self._thread_file: Optional[threading.Thread] = None
-        self._thread_storage: Optional[threading.Thread] = None
+        self._thread_storage: List[threading.Thread] = []
         self._thread_meta: Optional[threading.Thread] = None
 
         self._queue_message: queue.Queue[Any] = self.settings.message
@@ -181,6 +181,10 @@ class ServerInterface:
             time.sleep(self.settings.x_internal_check_process / 10)  # TODO: cleanup
 
     def stop(self) -> None:
+        logger.debug(
+            f'{tag}: stopping interface, queues: num={self._queue_num.qsize()}, '
+            f'data={self._queue_data.qsize()}'
+        )
         if self._thread_progress is None:
             self._thread_progress = threading.Thread(
                 target=self._worker_progress, daemon=True
@@ -190,22 +194,28 @@ class ServerInterface:
         self._stop_event.set()
         self.save()
 
-        for t in [
-            self._thread_num,
-            self._thread_data,
-            self._thread_file,
-            self._thread_storage,
-            self._thread_message,
-            self._thread_meta,
-            self._thread_progress,
-        ]:
+        threads = [
+            ('num', self._thread_num),
+            ('data', self._thread_data),
+            ('file', self._thread_file),
+            ('message', self._thread_message),
+            ('meta', self._thread_meta),
+            ('progress', self._thread_progress),
+        ]
+        # Add all storage threads to the join list
+        if self._thread_storage is not None:
+            for storage_thread in self._thread_storage:
+                threads.append(('storage', storage_thread))
+
+        for name, t in threads:
             if t is not None:
+                logger.debug(f'{tag}: joining thread {name} (alive={t.is_alive()})')
                 t.join(timeout=self.settings.x_thread_join_timeout_seconds)
                 if t.is_alive():
                     logger.warning(
-                        f'{tag}: Thread {t.name} did not terminate, continuing anyway'
+                        f'{tag}: Thread {name} ({t.name}) did not terminate, '
+                        'continuing anyway'
                     )
-                t = None
 
         if self._progress_task is not None:
             self._progress.remove_task(self._progress_task)
@@ -303,7 +313,10 @@ class ServerInterface:
                 )
 
     def _worker_storage(self, f, url, data):
-        _ = self._put_v1(
+        logger.debug(
+            f'{tag}: uploading file {f._name}{f._ext} ({len(data)} bytes) to S3'
+        )
+        result = self._put_v1(
             url,
             {
                 'Content-Type': f._type,  # "application/octet-stream"
@@ -311,8 +324,17 @@ class ServerInterface:
             data,
             client=self.client_storage,
         )
+        if result and result.status_code in [200, 201]:
+            logger.debug(f'{tag}: file upload complete: {f._name}{f._ext}')
+        else:
+            status = result.status_code if result else 'no response'
+            logger.warning(
+                f'{tag}: file upload failed: {f._name}{f._ext}, status={status}'
+            )
 
     def _worker_file(self, file, q):
+        file_count = sum(len(fl) for fl in file.values())
+        logger.debug(f'{tag}: requesting presigned URLs for {file_count} files')
         r = self._post_v1(
             self.settings.url_file,
             self.headers,
@@ -321,6 +343,7 @@ class ServerInterface:
         )
         try:
             d = r.json()
+            logger.debug(f'{tag}: got presigned URLs, starting uploads')
             for k, fel in file.items():
                 for f in fel:
                     url = make_compat_storage_v1(f, d[k])
@@ -331,12 +354,13 @@ class ServerInterface:
                     if not url:
                         logger.critical(f'{tag}: file api did not provide storage url')
                     else:
-                        self._thread_storage = threading.Thread(
+                        storage_thread = threading.Thread(
                             target=self._worker_storage,
                             args=(f, url, data),
                             daemon=True,
                         )
-                        self._thread_storage.start()
+                        self._thread_storage.append(storage_thread)
+                        storage_thread.start()
         except Exception as e:
             logger.critical(
                 '%s: failed to send files to %s: [%s] %s',
@@ -420,6 +444,15 @@ class ServerInterface:
         retry: int = 0,
         error_info: str = '',
     ):
+        if retry == 0:
+            if isinstance(content, bytes):
+                content_info = f'{len(content)} bytes'
+            else:
+                content_info = 'stream'
+            logger.debug(
+                f'{tag}: {name}: {method.__name__.upper()} '
+                f'{url[:80]}... ({content_info})'
+            )
         if retry >= self.settings.x_file_stream_retry_max:
             logger.critical(f'{tag}: {name}: failed after {retry} retries')
 
