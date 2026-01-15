@@ -161,7 +161,7 @@ class Image(File):
 
     def __init__(
         self,
-        data: Union[str, 'PILImage.Image', np.ndarray],
+        data: Union[str, 'PILImage.Image', np.ndarray, bytes, bytearray],
         caption: Optional[str] = None,
     ) -> None:
         self._name = caption + f'.{uuid.uuid4()}' if caption else f'{uuid.uuid4()}'
@@ -226,7 +226,7 @@ class Audio(File):
 
     def __init__(
         self,
-        data: Union[str, np.ndarray],
+        data: Union[str, np.ndarray, bytes, bytearray],
         rate: Optional[int] = 48000,
         caption: Optional[str] = None,
         **kwargs: Any,
@@ -237,7 +237,7 @@ class Audio(File):
         self._name = caption + f'.{uuid.uuid4()}' if caption else f'{uuid.uuid4()}'
         self._id = f'{uuid.uuid4()}{uuid.uuid4()}'.replace('-', '')
         self._ext = '.wav'
-        self._audio: Union[str, np.ndarray]
+        self._audio: Any
         self._path: Optional[str] = None
         self._bytes: Optional[bytes] = None
         self._rate: int = int(rate) if rate is not None else 48000
@@ -278,7 +278,7 @@ class Video(File):
 
     def __init__(
         self,
-        data: Union[str, np.ndarray],
+        data: Union[str, np.ndarray, bytes, bytearray],
         rate: Optional[int] = 30,
         caption: Optional[str] = None,
         format: Optional[str] = None,
