@@ -758,7 +758,7 @@ class TestNeptuneRealBackend:
         or not os.environ.get('PLUTO_PROJECT'),
         reason='Requires NEPTUNE_API_TOKEN, NEPTUNE_PROJECT, and PLUTO_PROJECT',
     )
-    def test_real_neptune_with_pluto_dual_logging(self, tmp_path):
+    def test_real_neptune_with_pluto_dual_logging(self):
         """
         Full integration test with BOTH real Neptune and real pluto.
 
@@ -766,9 +766,12 @@ class TestNeptuneRealBackend:
         Requires both Neptune and pluto credentials.
         """
         # Apply monkeypatch BEFORE importing Run
-        import pluto.compat.neptune  # noqa: F401, I001
+        import tempfile
+
         import numpy as np
         from neptune_scale import Run
+
+        import pluto.compat.neptune  # noqa: F401, I001
 
         task_name = get_task_name()
 
@@ -790,8 +793,17 @@ class TestNeptuneRealBackend:
             )
 
         # Create and log multiple test images at different steps
+        # Use tempfile.mkdtemp() WITHOUT cleanup - Neptune Scale uploads files
+        # asynchronously in a separate process, and close() may terminate that
+        # process before uploads complete. By not cleaning up the temp dir,
+        # we ensure files persist for the lifetime of the Neptune sync process.
+        # The OS will clean up /tmp eventually.
         try:
+            from pathlib import Path
+
             from PIL import Image
+
+            tmp_path = Path(tempfile.mkdtemp())
 
             # Log 3 images at different steps to test stepping functionality
             for img_step in range(3):
@@ -825,10 +837,11 @@ class TestNeptuneRealBackend:
             run.assign_files({'summary/final_image': NeptuneFile(str(static_path))})
 
             print('  ✓ Logged 3 stepped images + 1 static image')
+            run.add_tags(['dual-logging-test', 'production', 'with-images'])
+
         except ImportError:
             print('  ⚠ PIL not available, skipping image logging')
-
-        run.add_tags(['dual-logging-test', 'production', 'with-images'])
+            run.add_tags(['dual-logging-test', 'production'])
 
         # Both runs should be active
         assert run._neptune_run is not None
