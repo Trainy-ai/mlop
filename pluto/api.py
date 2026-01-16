@@ -40,6 +40,7 @@ def make_compat_start_v1(config, settings, info, tags=None):
             # "runId": settings._op_id,
             'runName': settings._op_name,
             'projectName': settings.project,
+            'externalId': settings._external_id,  # User-provided run ID for multi-node
             'config': json.dumps(config) if config is not None else None,
             'loggerSettings': json.dumps(clean_dict(settings.to_dict())),
             'systemMetadata': json.dumps(info) if info is not None else None,

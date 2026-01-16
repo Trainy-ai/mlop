@@ -551,7 +551,7 @@ class TestFinishIdempotency:
     """Test that Op.finish() is idempotent."""
 
     def test_finish_only_executes_once(self):
-        """Test that finish() only executes cleanup once even if called multiple times."""
+        """Test that finish() only executes cleanup once even if called twice."""
         from pluto.op import Op
         from pluto.sets import Settings
 

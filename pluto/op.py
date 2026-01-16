@@ -206,6 +206,7 @@ class Op:
         self.settings = settings
         self.tags: List[str] = tags if tags else []  # Use provided tags or empty list
         self._monitor = OpMonitor(op=self)
+        self._resumed: bool = False  # Whether this run was resumed (multi-node)
 
         if self.settings.mode == 'noop':
             self.settings.disable_iface = True
@@ -224,9 +225,23 @@ class Op:
                 ),
                 client=tmp_iface.client_api,
             )
-            self.settings.url_view = r.json()['url']
-            self.settings._op_id = r.json()['runId']
-            logger.info(f'{tag}: started run {str(self.settings._op_id)}')
+            if not r:
+                raise ConnectionError(
+                    'Failed to create or resume run. Check connection to Pluto server.'
+                )
+            response_data = r.json()
+            self.settings.url_view = response_data['url']
+            self.settings._op_id = response_data['runId']
+            self._resumed = response_data.get('resumed', False)
+            if self._resumed:
+                logger.info(f'{tag}: resumed run {str(self.settings._op_id)}')
+                logger.warning(
+                    f'{tag}: Run was resumed via run_id. The `name` parameter '
+                    f'is ignored for resumed runs - the original run name is '
+                    f'preserved. For multi-node, use the same name across all ranks.'
+                )
+            else:
+                logger.info(f'{tag}: started run {str(self.settings._op_id)}')
 
             os.makedirs(f'{self.settings.get_dir()}/files', exist_ok=True)
             setup_logger(
@@ -452,6 +467,33 @@ class Op:
                 self._iface._update_config(config)
             except Exception as e:
                 logger.debug(f'{tag}: failed to sync config to server: {e}')
+
+    @property
+    def resumed(self) -> bool:
+        """
+        Whether this run was resumed from an existing run.
+
+        Returns True if a run with the same run_id already existed and this
+        process attached to it (Neptune-style multi-node resume).
+        """
+        return self._resumed
+
+    @property
+    def run_id(self) -> Optional[str]:
+        """
+        The user-provided run ID for multi-node distributed training.
+
+        This is the external ID that can be shared across multiple processes
+        to log to the same run. Returns None if no run_id was provided.
+        """
+        return self.settings._external_id
+
+    @property
+    def id(self) -> Optional[int]:
+        """
+        The server-assigned numeric run ID.
+        """
+        return self.settings._op_id
 
     def alert(
         self,
