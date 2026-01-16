@@ -44,6 +44,7 @@ class Settings:
     _op_name: Optional[str] = None
     _op_id: Optional[int] = None
     _op_status: int = -1
+    _external_id: Optional[str] = None  # User-provided run ID for multi-node
 
     store_db: str = 'store.db'
     store_table_num: str = 'num'
@@ -255,6 +256,12 @@ def setup(settings: Union[Settings, Dict[str, Any], None] = None) -> Settings:
                 f'{tag}: invalid PLUTO_THREAD_JOIN_TIMEOUT_SECONDS "{env_timeout}", '
                 f'using default. Value must be a positive integer.'
             )
+
+    # Read PLUTO_RUN_ID environment variable for multi-node distributed training
+    # Only apply if not already set via function parameters
+    env_run_id = _get_env_with_deprecation('PLUTO_RUN_ID', 'MLOP_RUN_ID')
+    if env_run_id is not None and '_external_id' not in settings_dict:
+        new_settings._external_id = env_run_id
 
     # Apply all settings (user params override env vars)
     new_settings.update(settings_dict)
