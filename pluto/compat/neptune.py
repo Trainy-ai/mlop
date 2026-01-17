@@ -349,8 +349,11 @@ class NeptuneRunWrapper:
             # CRITICAL: Disable Pluto's signal handlers to preserve Neptune's
             # exit behavior. This ensures multi-GPU (DDP/FSDP) exit logic is
             # identical to Neptune-only usage.
+            # Also disable sync process since it has a 30s shutdown timeout
+            # which conflicts with the compat layer's 5s cleanup timeout.
             settings = {
                 'x_disable_signal_handlers': True,
+                'sync_process_enabled': False,
             }
             if 'url_app' in pluto_config:
                 settings['url_app'] = pluto_config['url_app']
