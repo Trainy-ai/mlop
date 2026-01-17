@@ -936,7 +936,11 @@ class _SyncUploader:
         file_record: FileRecord,
         presigned_url: str,
     ) -> None:
-        """Upload a single file to S3 using presigned URL."""
+        """Upload a single file to S3 using presigned URL with retry."""
+        # Check file exists before attempting upload
+        if not os.path.exists(file_record.local_path):
+            raise FileNotFoundError(f'File not found: {file_record.local_path}')
+
         # Read file content
         with open(file_record.local_path, 'rb') as f:
             data = f.read()
@@ -953,18 +957,40 @@ class _SyncUploader:
             else self.FILE_UPLOAD_TIMEOUT_SECONDS
         )
 
-        response = self.storage_client.put(
-            presigned_url,
-            content=data,
-            headers={'Content-Type': file_record.file_type},
-            timeout=timeout,
-        )
+        # Retry logic with exponential backoff
+        max_retries = 1 if self._urgent_mode else 3
+        last_error: Optional[Exception] = None
 
-        if response.status_code not in [200, 201]:
-            raise Exception(
-                f'S3 upload failed with status {response.status_code}: '
-                f'{response.text[:100]}'
-            )
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.storage_client.put(
+                    presigned_url,
+                    content=data,
+                    headers={'Content-Type': file_record.file_type},
+                    timeout=timeout,
+                )
+
+                if response.status_code in [200, 201]:
+                    return  # Success
+
+                last_error = Exception(
+                    f'S3 upload failed with status {response.status_code}: '
+                    f'{response.text[:100]}'
+                )
+            except Exception as e:
+                last_error = e
+
+            # Retry with exponential backoff if not the last attempt
+            if attempt < max_retries:
+                wait = min(2**attempt, 10)  # Max 10s backoff
+                self.log.debug(
+                    f'S3 upload attempt {attempt + 1} failed, '
+                    f'retrying in {wait}s: {last_error}'
+                )
+                time.sleep(wait)
+
+        # All retries exhausted
+        raise last_error or Exception('S3 upload failed')
 
     def _post_with_retry(
         self,

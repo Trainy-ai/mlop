@@ -437,6 +437,10 @@ class Op:
             logger.debug(
                 f'{tag}: enqueued file {file_obj._name}{file_obj._ext} for sync'
             )
+        else:
+            logger.warning(
+                f'{tag}: Cannot enqueue file for sync - path is None after load'
+            )
 
     def finish(self, code: Union[int, None] = None) -> None:
         """Finish logging"""
