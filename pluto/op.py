@@ -31,6 +31,26 @@ from .util import get_char, get_val, to_json
 logger = logging.getLogger(f'{__name__.split(".")[0]}')
 tag = 'Operation'
 
+
+def _is_distributed_environment() -> bool:
+    """Check if running in a distributed (DDP/FSDP) environment."""
+    # Check environment variables set by torchrun/torch.distributed.launch
+    world_size = os.environ.get('WORLD_SIZE', '1')
+    if world_size.isdigit() and int(world_size) > 1:
+        return True
+
+    # Check if torch.distributed is initialized
+    try:
+        import torch.distributed as dist
+
+        if dist.is_available() and dist.is_initialized():
+            return True
+    except ImportError:
+        pass
+
+    return False
+
+
 # Signal handling state for graceful shutdown (Ctrl+C / SIGTERM)
 _signal_count = 0
 _signal_lock = threading.Lock()
@@ -210,6 +230,9 @@ class Op:
         self._resumed: bool = False  # Whether this run was resumed (multi-node)
         self._sync_manager: Optional[SyncProcessManager] = None
 
+        # Determine if sync process should be used
+        self._use_sync_process = settings.sync_process_enabled
+
         if self.settings.mode == 'noop':
             self.settings.disable_iface = True
             self.settings.disable_store = True
@@ -256,17 +279,17 @@ class Op:
             )
 
             # Initialize sync process manager if enabled
-            if settings.sync_process_enabled:
+            if self._use_sync_process:
                 self._init_sync_manager()
 
         self._store: Optional[DataStore] = (
             DataStore(config=config, settings=settings)
-            if not settings.disable_store and not settings.sync_process_enabled
+            if not settings.disable_store and not self._use_sync_process
             else None
         )
         self._iface: Optional[ServerInterface] = (
             ServerInterface(config=config, settings=settings)
-            if not settings.disable_iface and not settings.sync_process_enabled
+            if not settings.disable_iface and not self._use_sync_process
             else None
         )
         self._step = 0
@@ -455,6 +478,10 @@ class Op:
         # During preemption, don't block - let sync process handle it
         is_preemption = code == signal.SIGTERM
 
+        # In DDP/distributed, don't block waiting for sync - it causes deadlocks
+        # because all ranks must progress together for collective operations
+        is_distributed = _is_distributed_environment()
+
         try:
             # Handle sync process shutdown
             if self._sync_manager is not None:
@@ -463,6 +490,14 @@ class Op:
                     # This prevents blocking during pod termination
                     logger.debug(
                         f'{tag}: preemption detected (SIGTERM), '
+                        f'signaling sync shutdown without waiting'
+                    )
+                    self._sync_manager.stop(wait=False)
+                elif is_distributed:
+                    # DDP mode: signal shutdown but don't wait
+                    # This prevents deadlocks in collective operations
+                    logger.debug(
+                        f'{tag}: DDP environment detected, '
                         f'signaling sync shutdown without waiting'
                     )
                     self._sync_manager.stop(wait=False)
