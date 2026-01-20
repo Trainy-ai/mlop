@@ -255,7 +255,7 @@ class System:
                     name = pynvml.nvmlDeviceGetName(h)
                     name = name.lower().replace(' ', '_').replace('-', '_')
                     util = pynvml.nvmlDeviceGetUtilizationRates(h)
-                    d[f'{p}/gpu.{idx}.{name}.gpu'] = util.gpu
+                    d[f'{p}/gpu.{idx}.{name}.utilization'] = util.gpu
                     d[f'{p}/gpu.{idx}.{name}.memory'] = util.memory
                     d[f'{p}/gpu.{idx}.{name}.power'] = pynvml.nvmlDeviceGetPowerUsage(h)
         return d
