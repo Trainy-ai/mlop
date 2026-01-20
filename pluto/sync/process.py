@@ -730,6 +730,7 @@ class _SyncUploader:
         self.op_id = settings_dict.get('_op_id')
         self.op_name = settings_dict.get('_op_name', '')
         self.project = settings_dict.get('project', '')
+        self.tag = settings_dict.get('tag', 'pluto')
 
         # URLs
         self.url_num = settings_dict.get('url_num', '')
@@ -767,7 +768,6 @@ class _SyncUploader:
             self._client = httpx.Client(
                 timeout=httpx.Timeout(self.normal_timeout),
                 limits=httpx.Limits(max_connections=10),
-                http2=True,
             )
         return self._client
 
@@ -788,6 +788,7 @@ class _SyncUploader:
         return {
             'Authorization': f'Bearer {self.auth_token}',
             'Content-Type': 'application/x-ndjson',
+            'User-Agent': self.tag,
             'X-Run-Id': str(self.op_id or ''),
             'X-Run-Name': self.op_name,
             'X-Project-Name': self.project,
@@ -822,7 +823,7 @@ class _SyncUploader:
         if not lines:
             return
 
-        body = '\n'.join(lines) + '\n'
+        body = ('\n'.join(lines) + '\n').encode('utf-8')
         self._post_with_retry(self.url_num, body, self._get_headers())
 
     def upload_config(self, record: SyncRecord) -> None:

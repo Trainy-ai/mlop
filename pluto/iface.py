@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 import httpx
 
 from .api import (
+    make_compat_meta_v1,
     make_compat_status_v1,
     make_compat_update_config_v1,
     make_compat_update_tags_v1,
@@ -111,6 +112,36 @@ class ServerInterface:
     def _update_config(self, config: Dict[str, Any]):
         """Legacy method - use update_config() instead."""
         self.update_config(config)
+
+    def _update_meta(
+        self,
+        num: Optional[List[str]] = None,
+        df: Optional[Dict[str, List[str]]] = None,
+    ) -> None:
+        """Register log names (metrics/files) with the server.
+
+        This tells the server what metric/file names to expect so it can
+        properly index and display them in dashboards.
+
+        Args:
+            num: List of numeric metric names
+            df: Dict mapping file type names to lists of log names
+        """
+        if num:
+            self._post_v1(
+                self.settings.url_meta,
+                self.headers,
+                make_compat_meta_v1(num, 'num', self.settings),
+                client=self.client_api,
+            )
+        if df:
+            for type_name, names in df.items():
+                self._post_v1(
+                    self.settings.url_meta,
+                    self.headers,
+                    make_compat_meta_v1(names, type_name, self.settings),
+                    client=self.client_api,
+                )
 
     def _log_failed_request(
         self,

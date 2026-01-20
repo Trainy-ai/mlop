@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import traceback
+from collections import defaultdict
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 import pluto
@@ -353,6 +354,13 @@ class Op:
         # Always start the monitor for system metrics and heartbeats
         self._monitor.start()
 
+        # Register system metric names with server (required for dashboard display)
+        if self._iface:
+            sys_metric_names = list(
+                make_compat_monitor_v1(self.settings._sys.monitor()).keys()
+            )
+            self._iface._update_meta(sys_metric_names)
+
         # Print URL where users can view the run
         logger.info(f'{tag}: View run at {print_url(self.settings.url_view)}')
 
@@ -394,20 +402,55 @@ class Op:
         self._step = self._step + 1 if step is None else step
         timestamp_ms = int(time.time() * 1000)
 
-        # Extract numeric values for metrics and handle files
         metrics: Dict[str, Any] = {}
+        new_metric_names: List[str] = []
+        new_file_meta: Dict[str, List[str]] = defaultdict(list)
+
         for k, v in data.items():
             k = get_char(k)
+            items = v if isinstance(v, list) else [v]
 
-            # Handle lists of values
-            if isinstance(v, list):
-                for item in v:
-                    self._process_log_item_sync(k, item, metrics, timestamp_ms)
-            else:
-                self._process_log_item_sync(k, v, metrics, timestamp_ms)
+            # Register first item for metadata (only need one per key)
+            if items:
+                self._register_meta_sync(k, items[0], new_metric_names, new_file_meta)
+
+            for item in items:
+                self._process_log_item_sync(k, item, metrics, timestamp_ms)
 
         if metrics:
             self._sync_manager.enqueue_metrics(metrics, timestamp_ms, self._step)
+
+        # Register new metric/file names with server (required for dashboard display)
+        if (new_metric_names or new_file_meta) and self._iface:
+            self._iface._update_meta(num=new_metric_names, df=dict(new_file_meta))
+
+    def _is_numeric_value(self, value: Any) -> bool:
+        """Check if value is a numeric type (int, float, or tensor)."""
+        if isinstance(value, bool):
+            return False
+        if isinstance(value, (int, float)):
+            return True
+        # Check for tensor-like objects with .item() method
+        return hasattr(value, 'item') and callable(value.item)
+
+    def _register_meta_sync(
+        self,
+        key: str,
+        value: Any,
+        new_metric_names: List[str],
+        new_file_meta: Dict[str, List[str]],
+    ) -> None:
+        """Register new metric/file names for metadata update."""
+        if key in self.settings.meta:
+            return
+
+        self.settings.meta.append(key)
+        logger.debug(f'{tag}: added {key} at step {self._step}')
+
+        if isinstance(value, (File, Data)):
+            new_file_meta[value.__class__.__name__].append(key)
+        elif self._is_numeric_value(value):
+            new_metric_names.append(key)
 
     def _process_log_item_sync(
         self,
@@ -545,6 +588,9 @@ class Op:
             # Close HTTP clients
             if self._iface:
                 self._iface.close()
+
+            # Print URL where users can view the completed run
+            logger.info(f'{tag}: View run at {print_url(self.settings.url_view)}')
         except (Exception, KeyboardInterrupt) as e:
             self.settings._op_status = signal.SIGINT.value
             if self._iface:
