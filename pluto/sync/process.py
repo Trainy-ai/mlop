@@ -20,7 +20,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 try:
     from filelock import FileLock
@@ -1103,7 +1103,7 @@ class _SyncUploader:
     def _post_with_retry(
         self,
         url: str,
-        body: str,
+        body: Union[str, bytes],
         headers: Dict[str, str],
     ) -> None:
         """POST with exponential backoff retry. Respects urgent mode settings."""

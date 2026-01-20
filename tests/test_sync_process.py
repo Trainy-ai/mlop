@@ -277,7 +277,7 @@ class TestSyncProcessShutdown:
         )
 
         # Initial count may include system metrics from monitor starting
-        initial_count = run._sync_manager.get_pending_count()
+        _initial_count = run._sync_manager.get_pending_count()
 
         # Log some data
         for i in range(5):
@@ -317,9 +317,9 @@ class TestSyncProcessShutdown:
         assert 'test_metric_gamma' in run.settings.meta
 
         # Verify _iface exists and would have been used for metadata
-        assert run._iface is not None, (
-            "ServerInterface must exist to register metric names with server"
-        )
+        assert (
+            run._iface is not None
+        ), 'ServerInterface must exist to register metric names with server'
 
         run.finish()
 
@@ -351,7 +351,7 @@ class TestSyncProcessShutdown:
 
         # Verify _update_meta was called with the metric name
         metric_calls = [c for c in update_meta_calls if c['num']]
-        assert len(metric_calls) > 0, "_update_meta should be called for new metrics"
+        assert len(metric_calls) > 0, '_update_meta should be called for new metrics'
 
         # Find the call that registered 'new_metric'
         registered_names = []
@@ -361,7 +361,7 @@ class TestSyncProcessShutdown:
 
         assert 'new_metric' in registered_names, (
             f"'new_metric' should be registered via _update_meta. "
-            f"Registered names: {registered_names}"
+            f'Registered names: {registered_names}'
         )
 
         run.finish()
