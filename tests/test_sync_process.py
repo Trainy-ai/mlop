@@ -238,6 +238,45 @@ class TestSyncProcessIntegration:
         # Allow time for sync
         time.sleep(2)
 
+    def test_system_metrics_upload_via_sync(self):
+        """Test system metrics (CPU, GPU, memory) upload via sync process.
+
+        System metrics are automatically collected by OpMonitor and uploaded
+        via the sync process. This test verifies the full pipeline works
+        by checking that uploads complete without HTTP errors.
+        """
+        run = pluto.init(
+            project=TESTING_PROJECT_NAME,
+            name=get_task_name(),
+            config={},
+            sync_process_enabled=True,
+        )
+
+        # System metrics are collected automatically by OpMonitor
+        # Wait for at least one collection cycle (default interval is 1s)
+        time.sleep(3)
+
+        # Verify system metrics were enqueued
+        assert run._sync_manager is not None
+        store = run._sync_manager.store
+
+        with store._lock:
+            cursor = store.conn.execute(
+                'SELECT COUNT(*) FROM sync_queue WHERE record_type = ?',
+                (int(RecordType.SYSTEM),),
+            )
+            system_count = cursor.fetchone()[0]
+
+        # Should have at least one system metrics record
+        assert system_count > 0, 'System metrics should be collected by OpMonitor'
+
+        # Finish waits for sync to complete - HTTP errors would cause this to fail
+        # The sync process uploads system metrics to the backend; success means
+        # HTTP requests returned 2xx status codes
+        run.finish()
+
+        # If we get here without exception, uploads succeeded
+
 
 class TestSyncProcessShutdown:
     """Tests for sync process shutdown behavior."""
