@@ -73,7 +73,9 @@ class Settings:
     x_disable_signal_handlers: bool = False  # For compat layers (Neptune)
 
     # Sync process settings (V2 architecture)
-    sync_process_enabled: bool = True  # Use separate sync process
+    # When True (default): Data uploaded to server via background sync process
+    # When False: Offline mode - data stored locally in SQLite only (no upload)
+    sync_process_enabled: bool = True
     sync_process_db_path: Optional[str] = None  # Override sync DB location
     sync_process_flush_interval: float = 1.0  # Flush interval (seconds)
     sync_process_shutdown_timeout: float = 30.0  # Max wait for sync

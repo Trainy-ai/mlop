@@ -71,55 +71,67 @@ pluto.log() → SQLite (local)   ←──  Tail & Upload
 
 ## Database Schema
 
+The actual implementation uses a unified queue approach in `pluto/sync/store.py`:
+
 ```sql
--- Main metrics table (append-only from training)
-CREATE TABLE metrics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp_ms INTEGER NOT NULL,
-    step INTEGER NOT NULL,
-    key TEXT NOT NULL,
-    value REAL NOT NULL,
-
-    -- Sync tracking (updated by sync process)
-    uploaded INTEGER DEFAULT 0,
-    upload_batch_id TEXT,
-
-    -- Indexing
-    INDEX idx_uploaded (uploaded),
-    INDEX idx_step (step)
+-- Schema version tracking
+CREATE TABLE schema_version (
+    version INTEGER PRIMARY KEY
 );
 
--- Files to upload
-CREATE TABLE files (
+-- Run metadata (which runs are active, their sync state)
+CREATE TABLE runs (
+    run_id TEXT PRIMARY KEY,
+    project TEXT NOT NULL,
+    op_id INTEGER,
+    parent_pid INTEGER,
+    created_at REAL NOT NULL,
+    last_heartbeat REAL NOT NULL,
+    finished INTEGER DEFAULT 0,
+    finish_requested_at REAL,
+    fully_synced INTEGER DEFAULT 0,
+    config_json TEXT
+);
+
+-- Unified sync queue for all record types (metrics, config, tags, system, data, console)
+CREATE TABLE sync_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    record_type INTEGER NOT NULL,  -- 0:METRIC, 1:FILE, 2:CONFIG, 3:DATA, 4:TAGS, 5:SYSTEM, 6:CONSOLE
+    payload_json TEXT NOT NULL,
     timestamp_ms INTEGER NOT NULL,
     step INTEGER,
+    status INTEGER DEFAULT 0,      -- 0:PENDING, 1:IN_PROGRESS, 2:COMPLETED, 3:FAILED
+    retry_count INTEGER DEFAULT 0,
+    created_at REAL NOT NULL,
+    last_attempt_at REAL,
+    error_message TEXT,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+);
+
+CREATE INDEX idx_sync_queue_status ON sync_queue(status, created_at);
+CREATE INDEX idx_sync_queue_run ON sync_queue(run_id, status);
+
+-- File uploads (separate table for large file tracking)
+CREATE TABLE file_uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
     local_path TEXT NOT NULL,
-    remote_key TEXT,
-    file_type TEXT NOT NULL,  -- 'image', 'audio', 'artifact', etc.
-    size_bytes INTEGER,
-
-    -- Sync tracking
-    uploaded INTEGER DEFAULT 0,
-    upload_url TEXT,  -- Presigned URL from server
-    upload_error TEXT,
-    upload_attempts INTEGER DEFAULT 0
+    remote_url TEXT,
+    file_type TEXT NOT NULL,
+    file_size INTEGER,
+    file_name TEXT,
+    file_ext TEXT,
+    log_name TEXT,
+    timestamp_ms INTEGER NOT NULL,
+    step INTEGER,
+    status INTEGER DEFAULT 0,      -- 0:PENDING, 1:IN_PROGRESS, 2:COMPLETED, 3:FAILED
+    retry_count INTEGER DEFAULT 0,
+    created_at REAL NOT NULL,
+    last_attempt_at REAL,
+    error_message TEXT,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
-
--- Run state (coordination between training and sync)
-CREATE TABLE run_state (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-
--- Predefined keys:
--- 'status': 'initializing' | 'running' | 'finishing' | 'finished' | 'failed'
--- 'sync_pid': PID of sync process
--- 'config': JSON config blob
--- 'tags': JSON array of tags
--- 'run_id': Server-assigned run ID
--- 'last_error': Last error message
 ```
 
 ## Failure Handling

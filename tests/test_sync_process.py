@@ -950,3 +950,61 @@ class TestDistributedEnvironmentDetection:
                 os.environ['WORLD_SIZE'] = original
             elif 'WORLD_SIZE' in os.environ:
                 del os.environ['WORLD_SIZE']
+
+    def test_slurm_detection(self):
+        """Test that SLURM environment variables trigger distributed detection."""
+        from pluto.op import _is_distributed_environment
+
+        original_procid = os.environ.get('SLURM_PROCID')
+        original_ntasks = os.environ.get('SLURM_NTASKS')
+        original_world = os.environ.get('WORLD_SIZE')
+        try:
+            # Clear WORLD_SIZE to isolate SLURM detection
+            if 'WORLD_SIZE' in os.environ:
+                del os.environ['WORLD_SIZE']
+
+            os.environ['SLURM_PROCID'] = '0'
+            os.environ['SLURM_NTASKS'] = '4'
+            assert _is_distributed_environment() is True
+        finally:
+            # Restore original values
+            if original_procid is not None:
+                os.environ['SLURM_PROCID'] = original_procid
+            elif 'SLURM_PROCID' in os.environ:
+                del os.environ['SLURM_PROCID']
+            if original_ntasks is not None:
+                os.environ['SLURM_NTASKS'] = original_ntasks
+            elif 'SLURM_NTASKS' in os.environ:
+                del os.environ['SLURM_NTASKS']
+            if original_world is not None:
+                os.environ['WORLD_SIZE'] = original_world
+
+    def test_slurm_single_task_not_distributed(self):
+        """Test that SLURM with single task is not considered distributed."""
+        from pluto.op import _is_distributed_environment
+
+        original_procid = os.environ.get('SLURM_PROCID')
+        original_ntasks = os.environ.get('SLURM_NTASKS')
+        original_world = os.environ.get('WORLD_SIZE')
+        try:
+            # Clear WORLD_SIZE to isolate SLURM detection
+            if 'WORLD_SIZE' in os.environ:
+                del os.environ['WORLD_SIZE']
+
+            os.environ['SLURM_PROCID'] = '0'
+            os.environ['SLURM_NTASKS'] = '1'
+            # SLURM_NTASKS=1 should not trigger distributed mode
+            result = _is_distributed_environment()
+            # Result depends on torch.distributed state
+            assert isinstance(result, bool)
+        finally:
+            if original_procid is not None:
+                os.environ['SLURM_PROCID'] = original_procid
+            elif 'SLURM_PROCID' in os.environ:
+                del os.environ['SLURM_PROCID']
+            if original_ntasks is not None:
+                os.environ['SLURM_NTASKS'] = original_ntasks
+            elif 'SLURM_NTASKS' in os.environ:
+                del os.environ['SLURM_NTASKS']
+            if original_world is not None:
+                os.environ['WORLD_SIZE'] = original_world

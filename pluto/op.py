@@ -40,6 +40,12 @@ def _is_distributed_environment() -> bool:
     if world_size.isdigit() and int(world_size) > 1:
         return True
 
+    # Check SLURM environment variables
+    if 'SLURM_PROCID' in os.environ:
+        slurm_ntasks = os.environ.get('SLURM_NTASKS', '1')
+        if slurm_ntasks.isdigit() and int(slurm_ntasks) > 1:
+            return True
+
     # Check if torch.distributed is initialized
     try:
         import torch.distributed as dist
@@ -386,12 +392,14 @@ class Op:
         commit: Union[bool, None] = None,
     ) -> None:
         """Log run data"""
-        # Use sync process if enabled
+        # Use sync process if enabled (default: uploads data to server)
         if self._sync_manager is not None:
             self._log_via_sync(data=data, step=step)
         elif self.settings.mode == 'perf':
             self._queue.put((data, step), block=False)
-        else:  # bypass queue
+        else:
+            # Legacy offline mode (sync_process_enabled=False)
+            # Data stored locally in SQLite only, not uploaded to server
             self._log(data=data, step=step)
 
     def _log_via_sync(
