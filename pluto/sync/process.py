@@ -19,6 +19,7 @@ import signal
 import subprocess
 import sys
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -35,11 +36,14 @@ ProcessType = subprocess.Popen
 
 logger = logging.getLogger(__name__)
 
-# Process coordination states
-STATE_RUNNING = 'running'
-STATE_FINISHING = 'finishing'
-STATE_FINISHED = 'finished'
-STATE_FAILED = 'failed'
+
+class SyncState(str, Enum):
+    """Process coordination states."""
+
+    RUNNING = 'running'
+    FINISHING = 'finishing'
+    FINISHED = 'finished'
+    FAILED = 'failed'
 
 
 class SyncProcessManager:
