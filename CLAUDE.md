@@ -120,9 +120,10 @@ Contains `make_compat_*_v1` functions that format data for server API v1:
 The sync process is a separate spawned process that handles all network I/O for uploading data to the backend. This isolates the training process from network latency and failures.
 
 **Key Components:**
-- **SyncProcessManager** (pluto/sync/manager.py): Spawns and manages the sync child process
-- **SyncProcessStore** (pluto/sync/store.py): SQLite-based storage with WAL mode for concurrent access
-- **sync_worker** (pluto/sync/worker.py): Main loop running in the child process
+- **SyncProcessManager** (pluto/sync/process.py): Interface for training process to enqueue data and manage sync subprocess
+- **_SyncUploader** (pluto/sync/process.py): Handles HTTP uploads to server endpoints
+- **SyncStore** (pluto/sync/store.py): SQLite-based storage with WAL mode for concurrent access
+- **_sync_main()** (pluto/sync/process.py): Main loop running in the child process
 
 **How it works:**
 1. Training process writes metrics/files to SQLite database (fast, local)
@@ -141,6 +142,7 @@ The sync process is a separate spawned process that handles all network I/O for 
 - Tags updates
 - Structured data (Graph, Histogram, Table)
 - Files (Image, Audio, Video, Text, Artifact)
+- Console logs (stdout/stderr)
 
 **Critical Design Decisions:**
 
